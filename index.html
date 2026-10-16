@@ -1,0 +1,783 @@
+<!-- Индикаторы 4 цифр PIN-кода -->
+  <div class="flex justify-center gap-4 my-8" :class="pinError ? 'animate-bounce' : ''">
+    <template x-for="i in [0, 1, 2, 3]" :key="i">
+      <div class="w-4 h-4 rounded-full transition-all duration-200 border"
+           :class="pinInput.length > i 
+             ? (pinError ? 'bg-rose-500 border-rose-400 shadow-[0_0_12px_#f43f5e]' : 'bg-emerald-400 border-emerald-300 shadow-[0_0_12px_#10b981]') 
+             : 'bg-slate-800 border-slate-600'">
+      </div>
+    </template>
+  </div>
+  <p x-show="pinError" class="text-xs text-rose-400 font-medium">Неверный PIN-код. Попробуйте снова.</p>
+</div>
+
+<!-- Цифровая клавиатура с виброоткликом HapticFeedback -->
+<div class="max-w-xs mx-auto w-full mb-6">
+  <div class="grid grid-cols-3 gap-4">
+    <template x-for="digit in ['1','2','3','4','5','6','7','8','9']" :key="digit">
+      <button @click="pressPinDigit(digit)"
+              class="h-16 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 active:scale-95 border border-slate-700/70 text-2xl font-bold text-white transition flex items-center justify-center shadow-lg">
+        <span x-text="digit"></span>
+      </button>
+    </template>
+    <div class="flex items-center justify-center">
+      <span class="text-[11px] text-slate-500 font-mono">TMA SECURE</span>
+    </div>
+    <button @click="pressPinDigit('0')"
+            class="h-16 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 active:scale-95 border border-slate-700/70 text-2xl font-bold text-white transition flex items-center justify-center shadow-lg">
+      0
+    </button>
+    <button @click="backspacePin()"
+            class="h-16 rounded-2xl bg-slate-800/40 hover:bg-slate-700/50 active:scale-95 border border-slate-800 text-slate-300 transition flex items-center justify-center">
+      <i data-lucide="delete" class="w-6 h-6"></i>
+    </button>
+  </div>
+</div>
+<!-- ВЕРХНЯЯ ШАПКА -->
+<header class="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+      <i data-lucide="cpu" class="w-5 h-5"></i>
+    </div>
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-sm font-extrabold tracking-wide text-white uppercase" x-text="settings.club_name"></h1>
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      </div>
+      <p class="text-[11px] text-slate-400">
+        Владелец • <span class="text-cyan-400 font-mono" x-text="dbConnected ? 'Supabase Live' : 'Автономный режим'"></span>
+      </p>
+    </div>
+  </div>
+  <button @click="triggerSmartShellSync()"
+          class="px-3 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition">
+    <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="isSyncing ? 'animate-spin' : ''"></i>
+    <span>Sync</span>
+  </button>
+</header>
+
+<!-- =================================================================== -->
+<!-- ЭКРАН 1: DASHBOARD (ГЛАВНАЯ)                                        -->
+<!-- =================================================================== -->
+<main x-show="activeTab === 'dashboard'" class="space-y-4">
+
+  <!-- Переключатель периода: Текущая смена / За сегодня / Месяц -->
+  <div class="grid grid-cols-3 gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+    <button @click="setDashboardPeriod('current_shift')"
+            :class="dashboardPeriod === 'current_shift' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white'"
+            class="py-2 rounded-lg text-xs transition">
+      Текущая смена
+    </button>
+    <button @click="setDashboardPeriod('today')"
+            :class="dashboardPeriod === 'today' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white'"
+            class="py-2 rounded-lg text-xs transition">
+      За сегодня
+      </button>
+    <button @click="setDashboardPeriod('month')"
+            :class="dashboardPeriod === 'month' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white'"
+            class="py-2 rounded-lg text-xs transition">
+      Месяц
+    </button>
+  </div>
+
+  <!-- КАРТОЧКИ ФИНАНСОВ: ЧИСТЫЙ CASH FLOW, ОПЕРАЦИОННАЯ ВЫРУЧКА, ОНЛАЙН VS ДЕПОЗИТ -->
+  <div class="grid grid-cols-2 gap-3">
+    <!-- Карточка 1: Чистый Cash Flow (ДДС) -->
+    <div class="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-3.5 neon-emerald">
+      <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+        <span>Чистый Cash Flow</span>
+        <i data-lucide="wallet" class="w-4 h-4 text-emerald-400"></i>
+      </div>
+      <div class="text-lg font-extrabold"
+           :class="metrics.netCashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'"
+           x-text="formatTenget(metrics.netCashFlow)">
+      </div>
+      <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] space-y-0.5 text-slate-400">
+        <div class="flex justify-between">
+          <span>Приток:</span>
+          <span class="text-emerald-300 font-medium" x-text="'+' + formatTenget(metrics.cashInflow)"></span>
+        </div>
+        <div class="flex justify-between">
+          <span>Отток:</span>
+          <span class="text-rose-300 font-medium" x-text="'-' + formatTenget(metrics.cashOutflow)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Карточка 2: Операционная выручка и P&L -->
+    <div class="bg-slate-900/90 border border-cyan-500/30 rounded-2xl p-3.5 neon-cyan">
+      <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+        <span>Опер. выручка (P&L)</span>
+        <i data-lucide="trending-up" class="w-4 h-4 text-cyan-400"></i>
+      </div>
+      <div class="text-lg font-extrabold text-cyan-400" x-text="formatTenget(metrics.pnlIncome)"></div>
+      <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] space-y-0.5 text-slate-400">
+        <div class="flex justify-between">
+          <span>Расходы P&L:</span>
+          <span class="text-rose-300 font-medium" x-text="'-' + formatTenget(metrics.pnlExpenses)"></span>
+        </div>
+        <div class="flex justify-between">
+          <span>Чистая P&L:</span>
+          <span :class="metrics.netPnlProfit >= 0 ? 'text-emerald-300 font-bold' : 'text-rose-400 font-bold'"
+                x-text="formatTenget(metrics.netPnlProfit)"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Карточка 3: Онлайн-пополнения (авансы) vs Траты с депозита -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+        <i data-lucide="arrow-left-right" class="w-4 h-4 text-cyan-400"></i>
+        Онлайн-пополнения vs Траты с депозита
+      </span>
+      <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-300"
+            x-text="'Сальдо авансов: ' + (metrics.onlineTopups - metrics.depositSpends >= 0 ? '+' : '') + formatTenget(metrics.onlineTopups - metrics.depositSpends)">
+      </span>
+    </div>
+    <div class="grid grid-cols-2 gap-3 text-xs">
+      <div class="bg-slate-950/60 rounded-xl p-2.5 border border-slate-800/80">
+        <span class="text-slate-400 block text-[11px]">Онлайн-пополнения (в ДДС)</span>
+        <span class="text-sm font-bold text-emerald-400" x-text="formatTenget(metrics.onlineTopups)"></span>
+      </div>
+      <div class="bg-slate-950/60 rounded-xl p-2.5 border border-slate-800/80">
+        <span class="text-slate-400 block text-[11px]">Траты с депозита (отыграно)</span>
+        <span class="text-sm font-bold text-cyan-400" x-text="formatTenget(metrics.depositSpends)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- СТАТУС ТЕКУЩЕЙ / ПОСЛЕДНЕЙ СМЕНЫ И ВЫПОЛНЕНИЕ ПЛАНА АДМИНА -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-sm"
+             x-text="currentShift.admin_name_snapshot ? currentShift.admin_name_snapshot.slice(0,2).toUpperCase() : 'АД'">
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-bold text-white" x-text="currentShift.admin_name_snapshot"></span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase"
+                  :class="currentShift.shift_type === 'day' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'"
+                  x-text="currentShift.shift_type === 'day' ? 'День (10-22)' : 'Ночь (22-10)'">
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Тариф плана:
+            <span class="font-semibold text-slate-200"
+                  x-text="currentShift.is_weekend_rate ? 'Выходной (40 000 ₸)' : 'Будни (30 000 ₸)'"></span>
+          </p>
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="text-[11px] text-slate-400 block">ЗП за смену</span>
+        <span class="text-base font-extrabold"
+              :class="currentShiftPlanCompleted ? 'text-emerald-400' : 'text-slate-200'"
+              x-text="formatTenget(currentShiftSalary)">
+        </span>
+      </div>
+    </div>
+
+    <!-- Прогресс-бар выполнения плана (Наличные + Карта) -->
+    <div>
+      <div class="flex justify-between text-xs mb-1.5">
+        <span class="text-slate-400">Стандартная выручка кассы (Нал + Карта):</span>
+        <span class="font-bold text-white">
+          <span x-text="formatTenget(currentShiftStandardRevenue)"></span>
+          <span class="text-slate-500"> / </span>
+          <span x-text="formatTenget(currentShift.plan_amount)"></span>
+        </span>
+      </div>
+      <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+        <div class="h-full rounded-full transition-all duration-500"
+             :class="currentShiftPlanCompleted ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 'bg-gradient-to-r from-cyan-500 to-blue-500'"
+             :style="`width: ${Math.min(100, Math.round((currentShiftStandardRevenue / (currentShift.plan_amount || 30000)) * 100))}%`">
+        </div>
+      </div>
+      <div class="flex justify-between items-center mt-2 text-[11px]">
+        <span class="text-slate-400"
+              x-text="`Нал: ${formatTenget(currentShift.cash_revenue)} • Карта: ${formatTenget(currentShift.card_revenue)}`">
+        </span>
+        <span x-show="currentShiftPlanCompleted" class="text-emerald-400 font-bold flex items-center gap-1">
+          <i data-lucide="award" class="w-3.5 h-3.5"></i> Бонус +1 000 ₸ начислен!
+        </span>
+        <span x-show="!currentShiftPlanCompleted" class="text-slate-400">
+          До бонуса: <strong class="text-cyan-400" x-text="formatTenget(Math.max(0, currentShift.plan_amount - currentShiftStandardRevenue))"></strong>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ИНДИКАТОР БЕЗОПАСНОСТИ КАССЫ (АНТИФРОД КОНТРОЛЬ) -->
+  <div class="rounded-2xl p-4 border transition-all"
+       :class="cashDiscrepancy === 0 
+         ? 'bg-emerald-950/20 border-emerald-500/40 neon-emerald' 
+         : 'bg-rose-950/30 border-rose-500/60 neon-rose'">
+    <div class="flex items-start justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+             :class="cashDiscrepancy === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400 animate-pulse'">
+          <i :data-lucide="cashDiscrepancy === 0 ? 'shield-check' : 'alert-octagon'" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-xs font-extrabold uppercase tracking-wider"
+            :class="cashDiscrepancy === 0 ? 'text-emerald-400' : 'text-rose-400'"
+              x-text="cashDiscrepancy === 0 ? 'Касса в безопасности (Сходится)' : 'Алерт! Расхождение наличных в кассе'">
+          </h3>
+          <p class="text-[11px] text-slate-300 mt-0.5"
+             x-text="cashDiscrepancy === 0 
+               ? 'Фактический остаток SmartShell полностью совпадает с расчетным.' 
+               : (cashDiscrepancy < 0 ? `Обнаружена НЕДОСТАЧА: ${formatTenget(Math.abs(cashDiscrepancy))}` : `Обнаружен ИЗЛИШЕК: +${formatTenget(cashDiscrepancy)}`)">
+          </p>
+        </div>
+      </div>
+      <button @click="openCashEditModal()" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shrink-0">
+        Сверить
+      </button>
+    </div>
+
+    <div class="mt-3 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-[11px]">
+      <div class="text-slate-400">
+        На начало: <span class="text-slate-200 font-semibold" x-text="formatTenget(currentShift.cash_start)"></span>
+      </div>
+      <div class="text-slate-400">
+        Нал выручка: <span class="text-emerald-400 font-semibold" x-text="'+' + formatTenget(currentShift.cash_revenue)"></span>
+      </div>
+      <div class="text-slate-400">
+        ЗП и закуп (нал): <span class="text-rose-400 font-semibold" x-text="'-' + formatTenget(Number(currentShiftSalary) + Number(currentShiftCashPurchases))"></span>
+      </div>
+      <div class="text-slate-400">
+        Ожидание / Факт:
+        <span class="text-white font-bold" x-text="`${formatTenget(expectedCashEnd)} / ${formatTenget(currentShift.cash_end_actual)}`"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ВИДЖЕТ «ДО АРЕНДЫ 20-ГО ЧИСЛА» И ТРЕБУЕМЫЙ СУТОЧНЫЙ ТЕМП -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i data-lucide="calendar-clock" class="w-4 h-4 text-cyan-400"></i>
+        <span class="text-xs font-bold text-white uppercase tracking-wide">До списания аренды и ЖКХ (20 число)</span>
+      </div>
+      <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+            x-text="`${rentWidget.daysLeft} дн.`">
+      </span>
+    </div>
+
+    <div>
+      <div class="flex justify-between text-xs mb-1.5">
+        <span class="text-slate-400">Собрано чистой прибыли за месяц:</span>
+        <span class="font-bold text-emerald-400">
+          <span x-text="formatTenget(rentWidget.collectedAmount)"></span>
+          <span class="text-slate-500"> из </span>
+          <span class="text-white" x-text="formatTenget(rentWidget.targetTotal)"></span>
+        </span>
+      </div>
+      <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+        <div class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all duration-500"
+             :style="`width: ${rentWidget.progressPercent}%`"></div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+      <span>Аренда: <strong class="text-slate-200" x-text="formatTenget(settings.monthly_rent)"></strong> + ЖКХ: <strong class="text-slate-200" x-text="formatTenget(currentMonthUtility)"></strong></span>
+      <span>
+        Темп: <strong class="text-cyan-400" x-text="formatTenget(rentWidget.requiredDailyPace) + '/сут'"></strong>
+      </span>
+    </div>
+  </div>
+</main>
+
+<!-- =================================================================== -->
+<!-- ЭКРАН 2: БАР И УСЛУГИ (КАЛЬЯНЫ, PLAYSTATION, НАКЛАДНЫЕ ЗАКУПА)       -->
+<!-- =================================================================== -->
+<main x-show="activeTab === 'bar'" class="space-y-4">
+
+  <!-- Верхние карточки: Бар, Кальяны (шт + выручка), Зона PlayStation -->
+  <div class="grid grid-cols-3 gap-2.5">
+    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
+      <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1">
+        <span>Бар</span>
+        <i data-lucide="cup-soda" class="w-3.5 h-3.5 text-emerald-400"></i>
+      </div>
+      <div class="text-sm font-extrabold text-emerald-400" x-text="formatTenget(metrics.barRevenue)"></div>
+      <div class="text-[10px] text-slate-500 mt-1">Напитки и снеки</div>
+    </div>
+
+    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
+      <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1">
+        <span>Кальяны</span>
+        <i data-lucide="flame" class="w-3.5 h-3.5 text-cyan-400"></i>
+      </div>
+      <div class="text-sm font-extrabold text-cyan-400" x-text="`${metrics.hookahsCount} шт.`"></div>
+      <div class="text-[10px] text-slate-300 font-semibold mt-1" x-text="formatTenget(metrics.hookahsRevenue)"></div>
+    </div>
+
+    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
+      <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1">
+        <span>PlayStation</span>
+        <i data-lucide="gamepad-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+      </div>
+      <div class="text-sm font-extrabold text-indigo-400" x-text="formatTenget(metrics.psRevenue)"></div>
+      <div class="text-[10px] text-slate-500 mt-1">VIP и консоли</div>
+    </div>
+  </div>
+
+  <!-- Кнопка «+ Внести закуп товара» -->
+  <button @click="showPurchaseModal = true"
+          class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-98 transition">
+    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+    <span>+ Внести закуп товара (накладная / чек)</span>
+  </button>
+
+  <!-- Проданные позиции бара из SmartShell за выбранный период -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <i data-lucide="shopping-bag" class="w-4 h-4 text-emerald-400"></i>
+        Проданные позиции (SmartShell)
+      </h3>
+      <span class="text-[11px] text-slate-400" x-text="`Позиций: ${aggregatedSoldItems.length}`"></span>
+    </div>
+
+    <div class="space-y-2">
+      <template x-for="(item, idx) in aggregatedSoldItems" :key="idx">
+        <div class="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 text-xs">
+          <div>
+            <div class="font-semibold text-white" x-text="item.name"></div>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-cyan-300" x-text="item.category"></span>
+          </div>
+          <div class="text-right">
+            <div class="font-bold text-emerald-400" x-text="formatTenget(item.sum)"></div>
+            <div class="text-[11px] text-slate-400" x-text="`${item.qty} шт.`"></div>
+          </div>
+        </div>
+      </template>
+      <div x-show="aggregatedSoldItems.length === 0" class="text-center py-4 text-xs text-slate-500">
+        Нет проданных позиций за выбранный фильтр
+      </div>
+    </div>
+  </div>
+
+  <!-- Журнал накладных закупа бара и расходников -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <i data-lucide="receipt" class="w-4 h-4 text-rose-400"></i>
+        История закупок (Кассовый метод)
+      </h3>
+      <span class="text-xs font-bold text-rose-400" x-text="'-' + formatTenget(metrics.barPurchasesTotal)"></span>
+    </div>
+
+    <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+      <template x-for="pur in barPurchases" :key="pur.id">
+        <div class="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 text-xs">
+          <div>
+            <div class="font-semibold text-white" x-text="pur.
+              item_name"></div>
+            <div class="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+              <span x-text="pur.purchase_date"></span>
+              <span>•</span>
+              <span class="text-cyan-400" x-text="pur.category"></span>
+              <span>•</span>
+              <span :class="pur.payment_source === 'cash' ? 'text-amber-300' : 'text-indigo-300'"
+                    x-text="pur.payment_source === 'cash' ? 'Из кассы (Нал)' : 'Со счета'"></span>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold text-rose-400" x-text="'-' + formatTenget(pur.total_cost)"></div>
+            <div class="text-[10px] text-slate-500" x-text="`${pur.quantity} ед.`"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</main>
+
+<!-- =================================================================== -->
+<!-- ЭКРАН 3: ОТЧЕТЫ И АНАЛИТИКА (ДДС vs P&L, ГРАФИК, КАЛЕНДАРЬ СМЕН)    -->
+<!-- =================================================================== -->
+<main x-show="activeTab === 'reports'" class="space-y-4">
+
+  <!-- Переключатель отчетов: ДДС (Деньги) / P&L (Прибыль) -->
+  <div class="grid grid-cols-2 gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+    <button @click="reportType = 'dds'"
+            :class="reportType === 'dds' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+            class="py-2 rounded-lg text-xs transition">
+      ДДС (Движение денег)
+    </button>
+    <button @click="reportType = 'pnl'"
+            :class="reportType === 'pnl' ? 'bg-cyan-400 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+            class="py-2 rounded-lg text-xs transition">
+      P&L (Прибыль и убытки)
+    </button>
+  </div>
+
+  <!-- Детальная таблица ДДС (Cash Flow) -->
+  <div x-show="reportType === 'dds'" class="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-4 space-y-2.5 text-xs">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+      <span class="font-bold text-white uppercase">Отчет ДДС (Реальный денежный поток)</span>
+      <span class="text-[11px] text-emerald-400 font-mono">Кассовый метод</span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>+ Наличная выручка кассы:</span>
+      <span class="font-semibold text-emerald-400" x-text="formatTenget(monthReport.cashRevenue)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>+ Безналичная выручка (Kaspi / Карты):</span>
+      <span class="font-semibold text-emerald-400" x-text="formatTenget(monthReport.cardRevenue)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>+ Онлайн-пополнения (авансы клиентов):</span>
+      <span class="font-semibold text-emerald-400" x-text="formatTenget(monthReport.onlineTopups)"></span>
+    </div>
+    <div class="flex justify-between font-bold text-white border-t border-slate-800 pt-1.5">
+      <span>ИТОГО ДЕНЕЖНЫЙ ПРИТОК:</span>
+      <span class="text-emerald-400" x-text="formatTenget(monthReport.ddsInflow)"></span>
+    </div>
+
+    <div class="flex justify-between text-slate-300 pt-2">
+      <span>- Выданная ЗП администраторов:</span>
+      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.salaryPaid)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>- Закупки бара и кальянов (нал + счет):</span>
+      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.barPurchases)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>- Аренда помещения (списание 20-го числа):</span>
+      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.ddsRentOutflow)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>- ЖКХ и интернет (списание 20-го числа):</span>
+      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.ddsUtilityOutflow)"></span>
+    </div>
+    <div class="flex justify-between text-sm font-extrabold border-t border-slate-700 pt-2.5">
+      <span class="text-white">ЧИСТЫЙ ДЕНЕЖНЫЙ ПОТОК:</span>
+      <span :class="monthReport.ddsNet >= 0 ? 'text-emerald-400' : 'text-rose-400'"
+            x-text="formatTenget(monthReport.ddsNet)"></span>
+    </div>
+  </div>
+
+  <!-- Детальная таблица P&L (Операционная прибыль) -->
+  <div x-show="reportType === 'pnl'" class="bg-slate-900/90 border border-cyan-500/30 rounded-2xl p-4 space-y-2.5 text-xs">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+      <span class="font-bold text-white uppercase">Отчет P&L (Операционный выхлоп)</span>
+      <span class="text-[11px] text-cyan-400 font-mono">Метод начисления</span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>+ Выручка за ПК (Тарифы и пакеты):</span>
+      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.pcRevenue)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>+ Продажи бара (Напитки и снеки):</span>
+      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.barRevenue)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>+ Выручка зоны PlayStation:</span>
+      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.psRevenue)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>+ Выручка за Кальяны (<span x-text="monthReport.hookahsCount"></span> шт.):</span>
+      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.hookahsRevenue)"></span>
+    </div>
+    <div class="flex justify-between font-bold text-white border-t border-slate-800 pt-1.5">
+      <span>ИТОГО ОПЕРАЦИОННЫЙ ДОХОД:</span>
+      <span class="text-cyan-400" x-text="formatTenget(monthReport.pnlIncome)"></span>
+    </div>
+
+    <div class="flex justify-between text-slate-300 pt-2">
+      <span>- Начисленная ЗП админов (с бонусами):</span>
+      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.salaryAccrued)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>- Себестоимость закупок бара и табака:</span>
+      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.barPurchases)"></span>
+    </div>
+    <div class="flex justify-between text-slate-300">
+      <span>- Распределенная аренда и ЖКХ (пропорц. дням):</span>
+      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.pnlAllocatedFixed)"></span>
+    </div>
+
+    <div class="flex justify-between text-sm font-extrabold border-t border-slate-700 pt-2.5">
+      <span class="text-white">ЧИСТАЯ ОПЕРАЦИОННАЯ ПРИБЫЛЬ:</span>
+      <span :class="monthReport.pnlNet >= 0 ? 'text-emerald-400' : 'text-rose-400'"
+            x-text="formatTenget(monthReport.pnlNet)"></span>
+    </div>
+  </div>
+
+  <!-- График динамики выручки по сменам (Chart.js) -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
+        Динамика выручки по сменам vs План
+      </h3>
+    </div>
+    <div class="h-52">
+      <canvas id="shiftsRevenueChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Календарь смен с цветовой индикацией выполнения плана -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i>
+        Журнал-календарь смен
+      </h3>
+      <div class="flex items-center gap-2 text-[10px]">
+        <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> План выполнен</span>
+        <span class="flex items-center gap-1 text-rose-400"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Не выполнен</span>
+      </div>
+    </div>
+
+    <div class="space-y-2">
+      <template x-for="sh in shifts" :key="sh.id">
+        <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs"
+             :class="(Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount)
+               ? 'bg-emerald-950/20 border-emerald-500/30'
+               : 'bg-rose-950/20 border-rose-500/30'">
+          <div class="flex items-center gap-2.5">
+            <div class="w-2.5 h-8 rounded-full"
+                 :class="(Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount) ? 'bg-emerald-400' : 'bg-rose-500'"></div>
+            <div>
+              <div class="font-bold text-white flex items-center gap-1.5">
+                <span x-text="sh.shift_date"></span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"
+                      x-text="sh.shift_type === 'day' ? 'День' : 'Ночь'"></span>
+                <span class="text-[10px] text-slate-400" x-text="sh.admin_name_snapshot"></span>
+              </div>
+              <div class="text-[11px] text-slate-400">
+                План: <span x-text="formatTenget(sh.plan_amount)"></span> • ЗП: <span class="text-white font-semibold" x-text="formatTenget((Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount) ? 6000 : 5000)"></span>
+              </div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="font-extrabold"
+                 :class="(Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount) ? 'text-emerald-400' : 'text-rose-400'"
+                 x-text="formatTenget(Number(sh.cash_revenue) + Number(sh.card_revenue))"></div>
+            <div class="text-[10px] text-slate-400" x-text="`Кальяны: ${sh.hookahs_count} шт.`"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</main>
+
+<!-- =================================================================== -->
+<!-- ЭКРАН 4: НАСТРОЙКИ (АРЕНДА, ЖКХ, PIN-КОД, SMARTSHELL & SUPABASE)     -->
+<!-- =================================================================== -->
+<main x-show="activeTab === 'settings'" class="space-y-4">
+
+  <!-- Финансовые нормативы: Аренда и ЖКХ -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+      <i data-lucide="building-2" class="w-4 h-4"></i>
+      Постоянные расходы (Списание 20-го числа)
+    </h3>
+
+    <div>
+      <label class="text-xs text-slate-400 block mb-1">Базовая стоимость аренды в месяц (₸)</label>
+      <input type="number" x-model.number="settings.monthly_rent"
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-emerald-500" />
+    </div>
+
+    <div>
+      <label class="text-xs text-slate-400 block mb-1">Сумма ЖКХ за текущий месяц по квитанции (₸)</label>
+      <input type="number" x-model.number="currentMonthUtility"
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-cyan-500" />
+    </div>
+
+    <button @click="saveFinancialSettings()"
+            class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition">
+      Сохранить аренду и ЖКХ
+    </button>
+  </div>
+
+  <!-- Интеграция со SmartShell API -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+      <i data-lucide="plug-zap" class="w-4 h-4"></i>
+      Подключение к SmartShell API (v1/v2)
+    </h3>
+
+    <div>
+      <label class="text-xs text-slate-400 block mb-1">SmartShell Endpoint URL</label>
+      <input type="text" x-model="settings.smartshell_api_url"
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
+    </div>
+
+    <div>
+      <label class="text-xs text-slate-400 block mb-1">SmartShell Bearer API Token</label>
+      <input type="password" x-model="settings.smartshell_api_token" placeholder="eyJhbGciOiJIUzI1NiIsInR5c..."
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
+    </div>
+
+    <button @click="saveFinancialSettings()"
+            class="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition">
+      Обновить токен SmartShell
+    </button>
+  </div>
+
+  <!-- Безопасность: Смена PIN-кода и Owner Telegram ID -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-2">
+      <i data-lucide="key-round" class="w-4 h-4"></i>
+      Безопасность и доступ владельца
+    </h3>
+
+    <div>
+      <label class="text-xs text-slate-400 block mb-1">Разрешенный Telegram ID владельца</label>
+      <input type="number" x-model.number="settings.owner_tg_id"
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white" />
+    </div>
+
+    <div class="flex gap-2">
+      <input type="password" maxlength="4" x-model="newPinCandidate" placeholder="Новый 4-значный PIN"
+             class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white" />
+      <button @click="updatePinCode()"
+              class="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs">
+        Сменить PIN
+      </button>
+    </div>
+  </div>
+
+  <!-- Подключение к облачной БД Supabase -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+      <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i>
+      Ключи базы данных Supabase
+    </h3>
+    <div>
+      <label class="text-xs text-slate-400 block mb-1">Supabase Project URL</label>
+      <input type="text" x-model="supabaseConfig.url" placeholder="https://xxxx.supabase.co"
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
+    </div>
+    <div>
+      <label class="text-xs text-slate-400 block mb-1">Supabase Anon Public Key</label>
+      <input type="password" x-model="supabaseConfig.anonKey" placeholder="eyJhbGciOi..."
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
+    </div>
+    <button @click="connectSupabase()"
+            class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs transition">
+      Подключить и синхронизировать Supabase
+    </button>
+  </div>
+</main>
+
+<!-- =================================================================== -->
+<!-- НИЖНЯЯ НАВИГАЦИОННАЯ ПАНЕЛЬ (BOTTOM BAR)                             -->
+<!-- =================================================================== -->
+<nav class="fixed bottom-0 left-0 right-0 z-30 bg-slate-950/95 backdrop-blur-md border-t border-slate-800">
+  <div class="max-w-md mx-auto grid grid-cols-4 py-2 px-2">
+    <button @click="switchTab('dashboard')"
+            :class="activeTab === 'dashboard' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'"
+            class="flex flex-col items-center py-1 gap-1 transition">
+      <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+      <span class="text-[10px] font-bold">Главная</span>
+    </button>
+
+    <button @click="switchTab('bar')"
+            :class="activeTab === 'bar' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'"
+            class="flex flex-col items-center py-1 gap-1 transition">
+      <i data-lucide="Flame" class="w-5 h-5"></i>
+      <span class="text-[10px] font-bold">Бар и Услуги</span>
+    </button>
+
+    <button @click="switchTab('reports')"
+            :class="activeTab === 'reports' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'"
+            class="flex flex-col items-center py-1 gap-1 transition">
+      <i data-lucide="pie-chart" class="w-5 h-5"></i>
+      <span class="text-[10px] font-bold">ДДС и P&L</span>
+    </button>
+
+    <button @click="switchTab('settings')"
+            :class="activeTab === 'settings' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'"
+            class="flex flex-col items-center py-1 gap-1 transition">
+      <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+      <span class="text-[10px] font-bold">Настройки</span>
+    </button>
+  </div>
+</nav>
+
+<!-- =================================================================== -->
+<!-- МОДАЛЬНОЕ ОКНО: ВНЕСТИ ЗАКУП ТОВАРА (НАКЛАДНАЯ / ЧЕК)               -->
+<!-- =================================================================== -->
+<div x-show="showPurchaseModal" x-cloak class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+  <div @click.away="showPurchaseModal = false" class="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-extrabold text-white uppercase">Новый закуп товара / расходников</h3>
+      <button @click="showPurchaseModal = false" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2.5">
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">Категория</label>
+        <select x-model="newPurchase.category" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+          <option value="Напитки">Напитки</option>
+          <option value="Снеки">Снеки</option>
+          <option value="Табак">Табак (Кальяны)</option>
+          <option value="Расходники">Расходники</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">Источник оплаты</label>
+        <select x-model="newPurchase.payment_source" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+          <option value="cash">Из кассы (Наличные)</option>
+          <option value="bank">Со счета (Kaspi / Безнал)</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="text-[11px] text-slate-400 block mb-1">Наименование позиции</label>
+      <input type="text" x-model="newPurchase.item_name" placeholder="Напр.: Блок Red Bull 24 шт. / Табак Darkside"
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white" />
+    </div>
+
+    <div class="grid grid-cols-2 gap-2.5">
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">Количество</label>
+        <input type="number" x-model.number="newPurchase.quantity" min="1"
+               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white" />
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">Сумма закупа (₸)</label>
+        <input type="number" x-model.number="newPurchase.total_cost" min="0" placeholder="15000"
+               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-emerald-400" />
+      </div>
+    </div>
+
+    <button @click="submitBarPurchase()"
+            class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition">
+      Провести накладную и пересчитать кассу
+    </button>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<!-- МОДАЛЬНОЕ ОКНО: СВЕРКА ФАКТИЧЕСКИХ НАЛИЧНЫХ КАССЫ                   -->
+<!-- =================================================================== -->
+<div x-show="showCashModal" x-cloak class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+  <div @click.away="showCashModal = false" class="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-sm space-y-3">
+    <h3 class="text-sm font-extrabold text-white uppercase">Сверка кассы текущей смены</h3>
+    <div>
+      <label class="text-[11px] text-slate-400 block mb-1">Фактические наличные в кассе (SmartShell, ₸)</label>
+      <input type="number" x-model.number="currentShift.cash_end_actual"
+             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm font-bold text-white" />
+    </div>
+    <div class="text-xs text-slate-400 flex justify-between">
+      <span>Ожидаемые по формуле:</span>
+      <span class="text-emerald-400 font-bold" x-text="formatTenget(expectedCashEnd)"></span>
+    </div>
+    <button @click="saveCashVerification()"
+            class="w-full py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs">
+      Сохранить факт кассы
+    </button>
+  </div>
+</div>
