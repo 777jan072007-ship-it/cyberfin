@@ -1,783 +1,1391 @@
-<!-- Индикаторы 4 цифр PIN-кода -->
-  <div class="flex justify-center gap-4 my-8" :class="pinError ? 'animate-bounce' : ''">
-    <template x-for="i in [0, 1, 2, 3]" :key="i">
-      <div class="w-4 h-4 rounded-full transition-all duration-200 border"
-           :class="pinInput.length > i 
-             ? (pinError ? 'bg-rose-500 border-rose-400 shadow-[0_0_12px_#f43f5e]' : 'bg-emerald-400 border-emerald-300 shadow-[0_0_12px_#10b981]') 
-             : 'bg-slate-800 border-slate-600'">
-      </div>
-    </template>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CyberFin TMA</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --card-dark: #090d16;
+    --border: #334155;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --emerald: #10b981;
+    --emerald-glow: rgba(16, 185, 129, 0.2);
+    --cyan: #06b6d4;
+    --cyan-glow: rgba(6, 182, 212, 0.2);
+    --rose: #f43f5e;
+    --rose-glow: rgba(244, 63, 94, 0.25);
+    --amber: #f59e0b;
+    --indigo: #6366f1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding-bottom: 88px;
+    overflow-x: hidden;
+  }
+  .screen { display: none !important; }
+  .screen.active { display: block !important; }
+  .fullscreen-center {
+    min-height: 100vh;
+    display: none !important;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 24px 20px;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+  .fullscreen-center.active { display: flex !important; }
+  .container { max-width: 460px; margin: 0 auto; padding: 14px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 15px;
+    margin-bottom: 12px;
+  }
+  .card-emerald { border-color: rgba(16, 185, 129, 0.45); box-shadow: 0 0 20px var(--emerald-glow); }
+  .card-cyan { border-color: rgba(6, 182, 212, 0.45); box-shadow: 0 0 20px var(--cyan-glow); }
+  .card-rose { border-color: rgba(244, 63, 94, 0.65); box-shadow: 0 0 24px var(--rose-glow); background: rgba(69, 10, 26, 0.35); }
+  .header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .brand-box { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--emerald); font-weight: 900; font-size: 16px;
+  }
+  .title-sm { font-size: 14px; font-weight: 800; letter-spacing: 0.4px; color: #fff; }
+  .subtitle-xs { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .btn-sync {
+    background: rgba(6, 182, 212, 0.15);
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    color: var(--cyan);
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-sync:active { transform: scale(0.96); }
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: var(--card-dark);
+    padding: 5px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .segmented-2 { grid-template-columns: repeat(2, 1fr); }
+  .seg-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 9px 4px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .seg-btn.active {
+    background: var(--emerald);
+    color: #022c22;
+  }
+  .seg-btn.active-cyan {
+    background: var(--cyan);
+    color: #082f49;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .grid-2 .card, .grid-3 .card { margin-bottom: 0; }
+  .label-xs { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .val-lg { font-size: 18px; font-weight: 800; margin-top: 6px; }
+  .val-md { font-size: 15px; font-weight: 800; margin-top: 4px; }
+  .text-emerald { color: var(--emerald) !important; }
+  .text-cyan { color: var(--cyan) !important; }
+  .text-rose { color: var(--rose) !important; }
+  .text-amber { color: var(--amber) !important; }
+  .text-indigo { color: #818cf8 !important; }
+  .text-white { color: #fff !important; }
+  .divider { border-top: 1px solid var(--border); margin: 10px 0; }
+  .row-between { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-top: 5px; }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .badge-day { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
+  .badge-night { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); }
+  .badge-cyan { background: rgba(6, 182, 212, 0.18); color: #67e8f9; border: 1px solid rgba(6, 182, 212, 0.35); }
+  .progress-track {
+    width: 100%; height: 11px;
+    background: var(--card-dark);
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin: 8px 0;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--emerald), var(--cyan));
+    border-radius: 999px;
+    transition: width 0.35s ease;
+  }
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(90deg, var(--emerald), var(--cyan));
+    color: #042f2e;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-small {
+    background: #334155;
+    color: #fff;
+    border: 1px solid #475569;
+    padding: 6px 11px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(9, 13, 22, 0.65);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    font-size: 12px;
+  }
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(9, 13, 22, 0.96);
+    border-top: 1px solid var(--border);
+    z-index: 40;
+  }
+  .bottom-nav-inner {
+    max-width: 460px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 8px 6px;
+  }
+  .nav-item {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .nav-item.active { color: var(--emerald); }
+  .pin-dots { display: flex; justify-content: center; gap: 16px; margin: 28px 0; }
+  .pin-dot {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #1e293b;
+    border: 2px solid #475569;
+    transition: 0.15s;
+  }
+  .pin-dot.filled {
+    background: var(--emerald);
+    border-color: #6ee7b7;
+    box-shadow: 0 0 12px var(--emerald);
+  }
+  .pin-dot.error {
+    background: var(--rose);
+    border-color: #fda4af;
+    box-shadow: 0 0 12px var(--rose);
+  }
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 310px;
+    margin: 0 auto 16px auto;
+  }
+  .key-btn {
+    height: 62px;
+    border-radius: 18px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: #fff;
+    font-size: 23px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .key-btn:active { background: #334155; transform: scale(0.95); }
+  .input-group { margin-top: 10px; }
+  .input-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+  .input-field {
+    width: 100%;
+    background: var(--card-dark);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.82);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 60;
+  }
+  .modal-backdrop.active { display: flex; }
+  .modal-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 18px;
+    width: 100%;
+    max-width: 400px;
+  }
+</style>
+</head>
+<body>
+
+<div id="screen-forbidden" class="fullscreen-center">
+  <div style="margin-top: 40px; text-align: center;">
+    <div style="width: 72px; height: 72px; border-radius: 20px; background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.5); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; font-size: 32px;">🛡️</div>
+    <span class="badge" style="background: rgba(244,63,94,0.2); color: #fda4af; border: 1px solid rgba(244,63,94,0.4);">ERROR 403 • ДОСТУП ЗАКРЫТ</span>
+    <h1 style="font-size: 22px; font-weight: 800; margin-top: 12px;">Терминал заблокирован</h1>
+    <p style="font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.4;">Финансовая система клуба доступна исключительно авторизованному Telegram ID владельца.</p>
+    <div class="card" style="margin-top: 20px; text-align: left;">
+      <div class="row-between"><span style="color: var(--muted);">Ваш Telegram ID:</span><strong id="forbidden-current-id" class="text-rose">---</strong></div>
+      <div class="row-between" style="margin-top: 8px;"><span style="color: var(--muted);">Owner ID в базе:</span><strong id="forbidden-owner-id" class="text-emerald">---</strong></div>
+    </div>
   </div>
-  <p x-show="pinError" class="text-xs text-rose-400 font-medium">Неверный PIN-код. Попробуйте снова.</p>
+  <button class="btn-primary" onclick="bindCurrentOwner()">Я владелец (привязать мой Telegram ID)</button>
 </div>
 
-<!-- Цифровая клавиатура с виброоткликом HapticFeedback -->
-<div class="max-w-xs mx-auto w-full mb-6">
-  <div class="grid grid-cols-3 gap-4">
-    <template x-for="digit in ['1','2','3','4','5','6','7','8','9']" :key="digit">
-      <button @click="pressPinDigit(digit)"
-              class="h-16 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 active:scale-95 border border-slate-700/70 text-2xl font-bold text-white transition flex items-center justify-center shadow-lg">
-        <span x-text="digit"></span>
-      </button>
-    </template>
-    <div class="flex items-center justify-center">
-      <span class="text-[11px] text-slate-500 font-mono">TMA SECURE</span>
+<div id="screen-pin" class="fullscreen-center">
+  <div style="text-align: center; margin-top: 28px;">
+    <span class="badge badge-cyan" id="pin-club-badge">CYBER ARENA ESPORTS</span>
+    <h2 id="pin-title" style="font-size: 20px; font-weight: 800; margin-top: 14px;">Введите PIN-код владельца</h2>
+    <p id="pin-subtitle" style="font-size: 12px; color: var(--muted); margin-top: 4px;">Защищенный финансовый контур клуба</p>
+    <div class="pin-dots">
+      <div class="pin-dot" id="dot-0"></div>
+      <div class="pin-dot" id="dot-1"></div>
+      <div class="pin-dot" id="dot-2"></div>
+      <div class="pin-dot" id="dot-3"></div>
     </div>
-    <button @click="pressPinDigit('0')"
-            class="h-16 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 active:scale-95 border border-slate-700/70 text-2xl font-bold text-white transition flex items-center justify-center shadow-lg">
-      0
-    </button>
-    <button @click="backspacePin()"
-            class="h-16 rounded-2xl bg-slate-800/40 hover:bg-slate-700/50 active:scale-95 border border-slate-800 text-slate-300 transition flex items-center justify-center">
-      <i data-lucide="delete" class="w-6 h-6"></i>
-    </button>
+    <p id="pin-error-msg" style="font-size: 12px; color: var(--rose); font-weight: 700; min-height: 18px;"></p>
+  </div>
+
+  <div class="keypad">
+    <button class="key-btn" onclick="pressPin('1')">1</button>
+    <button class="key-btn" onclick="pressPin('2')">2</button>
+    <button class="key-btn" onclick="pressPin('3')">3</button>
+    <button class="key-btn" onclick="pressPin('4')">4</button>
+    <button class="key-btn" onclick="pressPin('5')">5</button>
+    <button class="key-btn" onclick="pressPin('6')">6</button>
+    <button class="key-btn" onclick="pressPin('7')">7</button>
+    <button class="key-btn" onclick="pressPin('8')">8</button>
+    <button class="key-btn" onclick="pressPin('9')">9</button>
+    <div style="display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); font-weight:700;">TMA SECURE</div>
+    <button class="key-btn" onclick="pressPin('0')">0</button>
+    <button class="key-btn" onclick="delPin()" style="font-size: 18px; color: var(--muted);">⌫</button>
   </div>
 </div>
-<!-- ВЕРХНЯЯ ШАПКА -->
-<header class="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
-  <div class="flex items-center gap-3">
-    <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-      <i data-lucide="cpu" class="w-5 h-5"></i>
-    </div>
-    <div>
-      <div class="flex items-center gap-2">
-        <h1 class="text-sm font-extrabold tracking-wide text-white uppercase" x-text="settings.club_name"></h1>
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-      </div>
-      <p class="text-[11px] text-slate-400">
-        Владелец • <span class="text-cyan-400 font-mono" x-text="dbConnected ? 'Supabase Live' : 'Автономный режим'"></span>
-      </p>
-    </div>
-  </div>
-  <button @click="triggerSmartShellSync()"
-          class="px-3 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition">
-    <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="isSyncing ? 'animate-spin' : ''"></i>
-    <span>Sync</span>
-  </button>
-</header>
 
-<!-- =================================================================== -->
-<!-- ЭКРАН 1: DASHBOARD (ГЛАВНАЯ)                                        -->
-<!-- =================================================================== -->
-<main x-show="activeTab === 'dashboard'" class="space-y-4">
-
-  <!-- Переключатель периода: Текущая смена / За сегодня / Месяц -->
-  <div class="grid grid-cols-3 gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
-    <button @click="setDashboardPeriod('current_shift')"
-            :class="dashboardPeriod === 'current_shift' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white'"
-            class="py-2 rounded-lg text-xs transition">
-      Текущая смена
-    </button>
-    <button @click="setDashboardPeriod('today')"
-            :class="dashboardPeriod === 'today' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white'"
-            class="py-2 rounded-lg text-xs transition">
-      За сегодня
-      </button>
-    <button @click="setDashboardPeriod('month')"
-            :class="dashboardPeriod === 'month' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white'"
-            class="py-2 rounded-lg text-xs transition">
-      Месяц
-    </button>
-  </div>
-
-  <!-- КАРТОЧКИ ФИНАНСОВ: ЧИСТЫЙ CASH FLOW, ОПЕРАЦИОННАЯ ВЫРУЧКА, ОНЛАЙН VS ДЕПОЗИТ -->
-  <div class="grid grid-cols-2 gap-3">
-    <!-- Карточка 1: Чистый Cash Flow (ДДС) -->
-    <div class="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-3.5 neon-emerald">
-      <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-        <span>Чистый Cash Flow</span>
-        <i data-lucide="wallet" class="w-4 h-4 text-emerald-400"></i>
-      </div>
-      <div class="text-lg font-extrabold"
-           :class="metrics.netCashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'"
-           x-text="formatTenget(metrics.netCashFlow)">
-      </div>
-      <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] space-y-0.5 text-slate-400">
-        <div class="flex justify-between">
-          <span>Приток:</span>
-          <span class="text-emerald-300 font-medium" x-text="'+' + formatTenget(metrics.cashInflow)"></span>
-        </div>
-        <div class="flex justify-between">
-          <span>Отток:</span>
-          <span class="text-rose-300 font-medium" x-text="'-' + formatTenget(metrics.cashOutflow)"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Карточка 2: Операционная выручка и P&L -->
-    <div class="bg-slate-900/90 border border-cyan-500/30 rounded-2xl p-3.5 neon-cyan">
-      <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-        <span>Опер. выручка (P&L)</span>
-        <i data-lucide="trending-up" class="w-4 h-4 text-cyan-400"></i>
-      </div>
-      <div class="text-lg font-extrabold text-cyan-400" x-text="formatTenget(metrics.pnlIncome)"></div>
-      <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] space-y-0.5 text-slate-400">
-        <div class="flex justify-between">
-          <span>Расходы P&L:</span>
-          <span class="text-rose-300 font-medium" x-text="'-' + formatTenget(metrics.pnlExpenses)"></span>
-        </div>
-        <div class="flex justify-between">
-          <span>Чистая P&L:</span>
-          <span :class="metrics.netPnlProfit >= 0 ? 'text-emerald-300 font-bold' : 'text-rose-400 font-bold'"
-                x-text="formatTenget(metrics.netPnlProfit)"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Карточка 3: Онлайн-пополнения (авансы) vs Траты с депозита -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
-    <div class="flex items-center justify-between mb-2">
-      <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-        <i data-lucide="arrow-left-right" class="w-4 h-4 text-cyan-400"></i>
-        Онлайн-пополнения vs Траты с депозита
-      </span>
-      <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-300"
-            x-text="'Сальдо авансов: ' + (metrics.onlineTopups - metrics.depositSpends >= 0 ? '+' : '') + formatTenget(metrics.onlineTopups - metrics.depositSpends)">
-      </span>
-    </div>
-    <div class="grid grid-cols-2 gap-3 text-xs">
-      <div class="bg-slate-950/60 rounded-xl p-2.5 border border-slate-800/80">
-        <span class="text-slate-400 block text-[11px]">Онлайн-пополнения (в ДДС)</span>
-        <span class="text-sm font-bold text-emerald-400" x-text="formatTenget(metrics.onlineTopups)"></span>
-      </div>
-      <div class="bg-slate-950/60 rounded-xl p-2.5 border border-slate-800/80">
-        <span class="text-slate-400 block text-[11px]">Траты с депозита (отыграно)</span>
-        <span class="text-sm font-bold text-cyan-400" x-text="formatTenget(metrics.depositSpends)"></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- СТАТУС ТЕКУЩЕЙ / ПОСЛЕДНЕЙ СМЕНЫ И ВЫПОЛНЕНИЕ ПЛАНА АДМИНА -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-sm"
-             x-text="currentShift.admin_name_snapshot ? currentShift.admin_name_snapshot.slice(0,2).toUpperCase() : 'АД'">
-        </div>
+<div id="screen-app" class="screen">
+  <div class="container">
+    <header class="header-bar">
+      <div class="brand-box">
+        <div class="brand-icon">⚡</div>
         <div>
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-bold text-white" x-text="currentShift.admin_name_snapshot"></span>
-            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase"
-                  :class="currentShift.shift_type === 'day' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'"
-                  x-text="currentShift.shift_type === 'day' ? 'День (10-22)' : 'Ночь (22-10)'">
-            </span>
+          <div class="title-sm" id="hdr-club-name">CYBER ARENA ESPORTS</div>
+          <div class="subtitle-xs">Владелец • <span id="hdr-db-status" class="text-cyan">Локальный + Cloud</span></div>
+        </div>
+      </div>
+      <button class="btn-sync" id="btn-sync-text" onclick="syncSmartShell()">↻ Sync</button>
+    </header>
+
+    <div id="tab-dashboard" class="screen active">
+      <div class="segmented">
+        <button class="seg-btn active" id="period-current_shift" onclick="setPeriod('current_shift')">Текущая смена</button>
+        <button class="seg-btn" id="period-today" onclick="setPeriod('today')">За сегодня</button>
+        <button class="seg-btn" id="period-month" onclick="setPeriod('month')">Месяц</button>
+      </div>
+
+      <div class="grid-2">
+        <div class="card card-emerald">
+          <div class="label-xs"><span>Чистый Cash Flow</span><span>💵</span></div>
+          <div class="val-lg text-emerald" id="kpi-net-cashflow">0 ₸</div>
+          <div class="divider"></div>
+          <div class="row-between"><span style="color:var(--muted);">Приток:</span><strong class="text-emerald" id="kpi-inflow">+0 ₸</strong></div>
+          <div class="row-between"><span style="color:var(--muted);">Отток:</span><strong class="text-rose" id="kpi-outflow">-0 ₸</strong></div>
+        </div>
+
+        <div class="card card-cyan">
+          <div class="label-xs"><span>Опер. выручка (P&L)</span><span>📈</span></div>
+          <div class="val-lg text-cyan" id="kpi-pnl-income">0 ₸</div>
+          <div class="divider"></div>
+          <div class="row-between"><span style="color:var(--muted);">Расходы P&L:</span><strong class="text-rose" id="kpi-pnl-exp">-0 ₸</strong></div>
+          <div class="row-between"><span style="color:var(--muted);">Чистая P&L:</span><strong class="text-emerald" id="kpi-pnl-net">0 ₸</strong></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row-between" style="margin-top:0; margin-bottom: 8px;">
+          <strong style="font-size:12px;">Онлайн-пополнения vs Траты с депозита</strong>
+          <span class="badge badge-cyan" id="kpi-deposit-diff">Сальдо: 0 ₸</span>
+        </div>
+        <div class="grid-2" style="margin-bottom:0;">
+          <div style="background:var(--card-dark); padding:10px; border-radius:12px; border:1px solid var(--border);">
+            <div style="font-size:10px; color:var(--muted);">Онлайн-пополнения (в ДДС)</div>
+            <div class="val-md text-emerald" id="kpi-online-topups">0 ₸</div>
           </div>
-          <p class="text-[11px] text-slate-400">
-            Тариф плана:
-            <span class="font-semibold text-slate-200"
-                  x-text="currentShift.is_weekend_rate ? 'Выходной (40 000 ₸)' : 'Будни (30 000 ₸)'"></span>
-          </p>
+          <div style="background:var(--card-dark); padding:10px; border-radius:12px; border:1px solid var(--border);">
+            <div style="font-size:10px; color:var(--muted);">Траты с депозита (отыграно)</div>
+            <div class="val-md text-cyan" id="kpi-deposit-spends">0 ₸</div>
+          </div>
         </div>
       </div>
-      <div class="text-right">
-        <span class="text-[11px] text-slate-400 block">ЗП за смену</span>
-        <span class="text-base font-extrabold"
-              :class="currentShiftPlanCompleted ? 'text-emerald-400' : 'text-slate-200'"
-              x-text="formatTenget(currentShiftSalary)">
-        </span>
-      </div>
-    </div>
 
-    <!-- Прогресс-бар выполнения плана (Наличные + Карта) -->
-    <div>
-      <div class="flex justify-between text-xs mb-1.5">
-        <span class="text-slate-400">Стандартная выручка кассы (Нал + Карта):</span>
-        <span class="font-bold text-white">
-          <span x-text="formatTenget(currentShiftStandardRevenue)"></span>
-          <span class="text-slate-500"> / </span>
-          <span x-text="formatTenget(currentShift.plan_amount)"></span>
-        </span>
-      </div>
-      <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
-        <div class="h-full rounded-full transition-all duration-500"
-             :class="currentShiftPlanCompleted ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 'bg-gradient-to-r from-cyan-500 to-blue-500'"
-             :style="`width: ${Math.min(100, Math.round((currentShiftStandardRevenue / (currentShift.plan_amount || 30000)) * 100))}%`">
-        </div>
-      </div>
-      <div class="flex justify-between items-center mt-2 text-[11px]">
-        <span class="text-slate-400"
-              x-text="`Нал: ${formatTenget(currentShift.cash_revenue)} • Карта: ${formatTenget(currentShift.card_revenue)}`">
-        </span>
-        <span x-show="currentShiftPlanCompleted" class="text-emerald-400 font-bold flex items-center gap-1">
-          <i data-lucide="award" class="w-3.5 h-3.5"></i> Бонус +1 000 ₸ начислен!
-        </span>
-        <span x-show="!currentShiftPlanCompleted" class="text-slate-400">
-          До бонуса: <strong class="text-cyan-400" x-text="formatTenget(Math.max(0, currentShift.plan_amount - currentShiftStandardRevenue))"></strong>
-        </span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ИНДИКАТОР БЕЗОПАСНОСТИ КАССЫ (АНТИФРОД КОНТРОЛЬ) -->
-  <div class="rounded-2xl p-4 border transition-all"
-       :class="cashDiscrepancy === 0 
-         ? 'bg-emerald-950/20 border-emerald-500/40 neon-emerald' 
-         : 'bg-rose-950/30 border-rose-500/60 neon-rose'">
-    <div class="flex items-start justify-between gap-3">
-      <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-             :class="cashDiscrepancy === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400 animate-pulse'">
-          <i :data-lucide="cashDiscrepancy === 0 ? 'shield-check' : 'alert-octagon'" class="w-5 h-5"></i>
-        </div>
-        <div>
-          <h3 class="text-xs font-extrabold uppercase tracking-wider"
-            :class="cashDiscrepancy === 0 ? 'text-emerald-400' : 'text-rose-400'"
-              x-text="cashDiscrepancy === 0 ? 'Касса в безопасности (Сходится)' : 'Алерт! Расхождение наличных в кассе'">
-          </h3>
-          <p class="text-[11px] text-slate-300 mt-0.5"
-             x-text="cashDiscrepancy === 0 
-               ? 'Фактический остаток SmartShell полностью совпадает с расчетным.' 
-               : (cashDiscrepancy < 0 ? `Обнаружена НЕДОСТАЧА: ${formatTenget(Math.abs(cashDiscrepancy))}` : `Обнаружен ИЗЛИШЕК: +${formatTenget(cashDiscrepancy)}`)">
-          </p>
-        </div>
-      </div>
-      <button @click="openCashEditModal()" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shrink-0">
-        Сверить
-      </button>
-    </div>
-
-    <div class="mt-3 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-[11px]">
-      <div class="text-slate-400">
-        На начало: <span class="text-slate-200 font-semibold" x-text="formatTenget(currentShift.cash_start)"></span>
-      </div>
-      <div class="text-slate-400">
-        Нал выручка: <span class="text-emerald-400 font-semibold" x-text="'+' + formatTenget(currentShift.cash_revenue)"></span>
-      </div>
-      <div class="text-slate-400">
-        ЗП и закуп (нал): <span class="text-rose-400 font-semibold" x-text="'-' + formatTenget(Number(currentShiftSalary) + Number(currentShiftCashPurchases))"></span>
-      </div>
-      <div class="text-slate-400">
-        Ожидание / Факт:
-        <span class="text-white font-bold" x-text="`${formatTenget(expectedCashEnd)} / ${formatTenget(currentShift.cash_end_actual)}`"></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ВИДЖЕТ «ДО АРЕНДЫ 20-ГО ЧИСЛА» И ТРЕБУЕМЫЙ СУТОЧНЫЙ ТЕМП -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <i data-lucide="calendar-clock" class="w-4 h-4 text-cyan-400"></i>
-        <span class="text-xs font-bold text-white uppercase tracking-wide">До списания аренды и ЖКХ (20 число)</span>
-      </div>
-      <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-            x-text="`${rentWidget.daysLeft} дн.`">
-      </span>
-    </div>
-
-    <div>
-      <div class="flex justify-between text-xs mb-1.5">
-        <span class="text-slate-400">Собрано чистой прибыли за месяц:</span>
-        <span class="font-bold text-emerald-400">
-          <span x-text="formatTenget(rentWidget.collectedAmount)"></span>
-          <span class="text-slate-500"> из </span>
-          <span class="text-white" x-text="formatTenget(rentWidget.targetTotal)"></span>
-        </span>
-      </div>
-      <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-        <div class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all duration-500"
-             :style="`width: ${rentWidget.progressPercent}%`"></div>
-      </div>
-    </div>
-
-    <div class="flex items-center justify-between pt-1 text-[11px] text-slate-400">
-      <span>Аренда: <strong class="text-slate-200" x-text="formatTenget(settings.monthly_rent)"></strong> + ЖКХ: <strong class="text-slate-200" x-text="formatTenget(currentMonthUtility)"></strong></span>
-      <span>
-        Темп: <strong class="text-cyan-400" x-text="formatTenget(rentWidget.requiredDailyPace) + '/сут'"></strong>
-      </span>
-    </div>
-  </div>
-</main>
-
-<!-- =================================================================== -->
-<!-- ЭКРАН 2: БАР И УСЛУГИ (КАЛЬЯНЫ, PLAYSTATION, НАКЛАДНЫЕ ЗАКУПА)       -->
-<!-- =================================================================== -->
-<main x-show="activeTab === 'bar'" class="space-y-4">
-
-  <!-- Верхние карточки: Бар, Кальяны (шт + выручка), Зона PlayStation -->
-  <div class="grid grid-cols-3 gap-2.5">
-    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
-      <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1">
-        <span>Бар</span>
-        <i data-lucide="cup-soda" class="w-3.5 h-3.5 text-emerald-400"></i>
-      </div>
-      <div class="text-sm font-extrabold text-emerald-400" x-text="formatTenget(metrics.barRevenue)"></div>
-      <div class="text-[10px] text-slate-500 mt-1">Напитки и снеки</div>
-    </div>
-
-    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
-      <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1">
-        <span>Кальяны</span>
-        <i data-lucide="flame" class="w-3.5 h-3.5 text-cyan-400"></i>
-      </div>
-      <div class="text-sm font-extrabold text-cyan-400" x-text="`${metrics.hookahsCount} шт.`"></div>
-      <div class="text-[10px] text-slate-300 font-semibold mt-1" x-text="formatTenget(metrics.hookahsRevenue)"></div>
-    </div>
-
-    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3">
-      <div class="flex items-center justify-between text-slate-400 text-[11px] mb-1">
-        <span>PlayStation</span>
-        <i data-lucide="gamepad-2" class="w-3.5 h-3.5 text-indigo-400"></i>
-      </div>
-      <div class="text-sm font-extrabold text-indigo-400" x-text="formatTenget(metrics.psRevenue)"></div>
-      <div class="text-[10px] text-slate-500 mt-1">VIP и консоли</div>
-    </div>
-  </div>
-
-  <!-- Кнопка «+ Внести закуп товара» -->
-  <button @click="showPurchaseModal = true"
-          class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-98 transition">
-    <i data-lucide="plus-circle" class="w-5 h-5"></i>
-    <span>+ Внести закуп товара (накладная / чек)</span>
-  </button>
-
-  <!-- Проданные позиции бара из SmartShell за выбранный период -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-        <i data-lucide="shopping-bag" class="w-4 h-4 text-emerald-400"></i>
-        Проданные позиции (SmartShell)
-      </h3>
-      <span class="text-[11px] text-slate-400" x-text="`Позиций: ${aggregatedSoldItems.length}`"></span>
-    </div>
-
-    <div class="space-y-2">
-      <template x-for="(item, idx) in aggregatedSoldItems" :key="idx">
-        <div class="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 text-xs">
+      <div class="card">
+        <div class="row-between" style="margin-top:0;">
           <div>
-            <div class="font-semibold text-white" x-text="item.name"></div>
-            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-cyan-300" x-text="item.category"></span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <strong style="font-size:14px;" id="shift-admin-name">Данияр М.</strong>
+              <span class="badge badge-day" id="shift-type-badge">День (10-22)</span>
+            </div>
+            <div class="subtitle-xs" id="shift-rate-label">Тариф плана: Будни (30 000 ₸)</div>
           </div>
-          <div class="text-right">
-            <div class="font-bold text-emerald-400" x-text="formatTenget(item.sum)"></div>
-            <div class="text-[11px] text-slate-400" x-text="`${item.qty} шт.`"></div>
+          <div style="text-align:right;">
+            <div style="font-size:10px; color:var(--muted);">ЗП за смену</div>
+            <div class="val-md text-emerald" id="shift-salary-val">6 000 ₸</div>
           </div>
         </div>
-      </template>
-      <div x-show="aggregatedSoldItems.length === 0" class="text-center py-4 text-xs text-slate-500">
-        Нет проданных позиций за выбранный фильтр
+
+        <div class="divider"></div>
+        <div class="row-between">
+          <span style="color:var(--muted);">Стандартная выручка кассы (Нал + Карта):</span>
+          <strong id="shift-plan-progress-text">0 ₸ / 30 000 ₸</strong>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="shift-plan-bar" style="width: 0%;"></div>
+        </div>
+        <div class="row-between" style="font-size:11px;">
+          <span style="color:var(--muted);" id="shift-cash-card-split">Нал: 0 ₸ • Карта: 0 ₸</span>
+          <strong id="shift-bonus-status" class="text-emerald">Бонус +1 000 ₸ начислен!</strong>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Журнал накладных закупа бара и расходников -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-        <i data-lucide="receipt" class="w-4 h-4 text-rose-400"></i>
-        История закупок (Кассовый метод)
-      </h3>
-      <span class="text-xs font-bold text-rose-400" x-text="'-' + formatTenget(metrics.barPurchasesTotal)"></span>
-    </div>
-
-    <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
-      <template x-for="pur in barPurchases" :key="pur.id">
-        <div class="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 text-xs">
+      <div class="card card-emerald" id="cash-security-card">
+        <div class="row-between" style="margin-top:0;">
           <div>
-            <div class="font-semibold text-white" x-text="pur.
-              item_name"></div>
-            <div class="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-              <span x-text="pur.purchase_date"></span>
-              <span>•</span>
-              <span class="text-cyan-400" x-text="pur.category"></span>
-              <span>•</span>
-              <span :class="pur.payment_source === 'cash' ? 'text-amber-300' : 'text-indigo-300'"
-                    x-text="pur.payment_source === 'cash' ? 'Из кассы (Нал)' : 'Со счета'"></span>
-            </div>
+            <div style="font-size:12px; font-weight:800; text-transform:uppercase;" id="cash-sec-title" class="text-emerald">✓ Касса в безопасности (Сходится)</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;" id="cash-sec-desc">Фактический остаток SmartShell совпадает с расчетным.</div>
           </div>
-          <div class="text-right">
-            <div class="font-bold text-rose-400" x-text="'-' + formatTenget(pur.total_cost)"></div>
-            <div class="text-[10px] text-slate-500" x-text="`${pur.quantity} ед.`"></div>
-          </div>
+          <button class="btn-small" onclick="openCashModal()">Сверить</button>
         </div>
-      </template>
-    </div>
-  </div>
-</main>
+        <div class="divider"></div>
+        <div class="grid-2" style="margin-bottom:0; gap:6px; font-size:11px;">
+          <div>На начало: <strong id="cash-start-val">0 ₸</strong></div>
+          <div>Нал выручка: <strong class="text-emerald" id="cash-rev-val">+0 ₸</strong></div>
+          <div>ЗП и закуп (нал): <strong class="text-rose" id="cash-out-val">-0 ₸</strong></div>
+          <div>Ожидание / Факт: <strong id="cash-exp-act-val">0 ₸ / 0 ₸</strong></div>
+        </div>
+      </div>
 
-<!-- =================================================================== -->
-<!-- ЭКРАН 3: ОТЧЕТЫ И АНАЛИТИКА (ДДС vs P&L, ГРАФИК, КАЛЕНДАРЬ СМЕН)    -->
-<!-- =================================================================== -->
-<main x-show="activeTab === 'reports'" class="space-y-4">
-
-  <!-- Переключатель отчетов: ДДС (Деньги) / P&L (Прибыль) -->
-  <div class="grid grid-cols-2 gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
-    <button @click="reportType = 'dds'"
-            :class="reportType === 'dds' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
-            class="py-2 rounded-lg text-xs transition">
-      ДДС (Движение денег)
-    </button>
-    <button @click="reportType = 'pnl'"
-            :class="reportType === 'pnl' ? 'bg-cyan-400 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
-            class="py-2 rounded-lg text-xs transition">
-      P&L (Прибыль и убытки)
-    </button>
-  </div>
-
-  <!-- Детальная таблица ДДС (Cash Flow) -->
-  <div x-show="reportType === 'dds'" class="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-4 space-y-2.5 text-xs">
-    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-      <span class="font-bold text-white uppercase">Отчет ДДС (Реальный денежный поток)</span>
-      <span class="text-[11px] text-emerald-400 font-mono">Кассовый метод</span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>+ Наличная выручка кассы:</span>
-      <span class="font-semibold text-emerald-400" x-text="formatTenget(monthReport.cashRevenue)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>+ Безналичная выручка (Kaspi / Карты):</span>
-      <span class="font-semibold text-emerald-400" x-text="formatTenget(monthReport.cardRevenue)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>+ Онлайн-пополнения (авансы клиентов):</span>
-      <span class="font-semibold text-emerald-400" x-text="formatTenget(monthReport.onlineTopups)"></span>
-    </div>
-    <div class="flex justify-between font-bold text-white border-t border-slate-800 pt-1.5">
-      <span>ИТОГО ДЕНЕЖНЫЙ ПРИТОК:</span>
-      <span class="text-emerald-400" x-text="formatTenget(monthReport.ddsInflow)"></span>
-    </div>
-
-    <div class="flex justify-between text-slate-300 pt-2">
-      <span>- Выданная ЗП администраторов:</span>
-      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.salaryPaid)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>- Закупки бара и кальянов (нал + счет):</span>
-      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.barPurchases)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>- Аренда помещения (списание 20-го числа):</span>
-      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.ddsRentOutflow)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>- ЖКХ и интернет (списание 20-го числа):</span>
-      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.ddsUtilityOutflow)"></span>
-    </div>
-    <div class="flex justify-between text-sm font-extrabold border-t border-slate-700 pt-2.5">
-      <span class="text-white">ЧИСТЫЙ ДЕНЕЖНЫЙ ПОТОК:</span>
-      <span :class="monthReport.ddsNet >= 0 ? 'text-emerald-400' : 'text-rose-400'"
-            x-text="formatTenget(monthReport.ddsNet)"></span>
-    </div>
-  </div>
-
-  <!-- Детальная таблица P&L (Операционная прибыль) -->
-  <div x-show="reportType === 'pnl'" class="bg-slate-900/90 border border-cyan-500/30 rounded-2xl p-4 space-y-2.5 text-xs">
-    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-      <span class="font-bold text-white uppercase">Отчет P&L (Операционный выхлоп)</span>
-      <span class="text-[11px] text-cyan-400 font-mono">Метод начисления</span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>+ Выручка за ПК (Тарифы и пакеты):</span>
-      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.pcRevenue)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>+ Продажи бара (Напитки и снеки):</span>
-      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.barRevenue)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>+ Выручка зоны PlayStation:</span>
-      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.psRevenue)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>+ Выручка за Кальяны (<span x-text="monthReport.hookahsCount"></span> шт.):</span>
-      <span class="font-semibold text-cyan-400" x-text="formatTenget(monthReport.hookahsRevenue)"></span>
-    </div>
-    <div class="flex justify-between font-bold text-white border-t border-slate-800 pt-1.5">
-      <span>ИТОГО ОПЕРАЦИОННЫЙ ДОХОД:</span>
-      <span class="text-cyan-400" x-text="formatTenget(monthReport.pnlIncome)"></span>
-    </div>
-
-    <div class="flex justify-between text-slate-300 pt-2">
-      <span>- Начисленная ЗП админов (с бонусами):</span>
-      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.salaryAccrued)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>- Себестоимость закупок бара и табака:</span>
-      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.barPurchases)"></span>
-    </div>
-    <div class="flex justify-between text-slate-300">
-      <span>- Распределенная аренда и ЖКХ (пропорц. дням):</span>
-      <span class="font-semibold text-rose-400" x-text="'-' + formatTenget(monthReport.pnlAllocatedFixed)"></span>
-    </div>
-
-    <div class="flex justify-between text-sm font-extrabold border-t border-slate-700 pt-2.5">
-      <span class="text-white">ЧИСТАЯ ОПЕРАЦИОННАЯ ПРИБЫЛЬ:</span>
-      <span :class="monthReport.pnlNet >= 0 ? 'text-emerald-400' : 'text-rose-400'"
-            x-text="formatTenget(monthReport.pnlNet)"></span>
-    </div>
-  </div>
-
-  <!-- График динамики выручки по сменам (Chart.js) -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-        <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
-        Динамика выручки по сменам vs План
-      </h3>
-    </div>
-    <div class="h-52">
-      <canvas id="shiftsRevenueChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Календарь смен с цветовой индикацией выполнения плана -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-        <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i>
-        Журнал-календарь смен
-      </h3>
-      <div class="flex items-center gap-2 text-[10px]">
-        <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> План выполнен</span>
-        <span class="flex items-center gap-1 text-rose-400"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Не выполнен</span>
+      <div class="card">
+        <div class="row-between" style="margin-top:0;">
+          <strong style="font-size:12px; text-transform:uppercase;">⏳ До списания аренды и ЖКХ (20 число)</strong>
+          <span class="badge badge-cyan" id="rent-days-left">3 дн.</span>
+        </div>
+        <div class="row-between" style="margin-top:8px;">
+          <span style="color:var(--muted);">Собрано потока за месяц:</span>
+          <strong id="rent-collected-text" class="text-emerald">0 ₸ из 568 500 ₸</strong>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="rent-progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="row-between" style="font-size:11px; color:var(--muted);">
+          <span id="rent-breakdown-text">Аренда: 500 000 ₸ + ЖКХ: 68 500 ₸</span>
+          <span>Темп: <strong class="text-cyan" id="rent-daily-pace">0 ₸/сут</strong></span>
+        </div>
       </div>
     </div>
 
-    <div class="space-y-2">
-      <template x-for="sh in shifts" :key="sh.id">
-        <div class="flex items-center justify-between p-2.5 rounded-xl border text-xs"
-             :class="(Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount)
-               ? 'bg-emerald-950/20 border-emerald-500/30'
-               : 'bg-rose-950/20 border-rose-500/30'">
-          <div class="flex items-center gap-2.5">
-            <div class="w-2.5 h-8 rounded-full"
-                 :class="(Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount) ? 'bg-emerald-400' : 'bg-rose-500'"></div>
-            <div>
-              <div class="font-bold text-white flex items-center gap-1.5">
-                <span x-text="sh.shift_date"></span>
-                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"
-                      x-text="sh.shift_type === 'day' ? 'День' : 'Ночь'"></span>
-                <span class="text-[10px] text-slate-400" x-text="sh.admin_name_snapshot"></span>
-              </div>
-              <div class="text-[11px] text-slate-400">
-                План: <span x-text="formatTenget(sh.plan_amount)"></span> • ЗП: <span class="text-white font-semibold" x-text="formatTenget((Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount) ? 6000 : 5000)"></span>
-              </div>
-            </div>
-          </div>
-          <div class="text-right">
-            <div class="font-extrabold"
-                 :class="(Number(sh.cash_revenue) + Number(sh.card_revenue)) >= Number(sh.plan_amount) ? 'text-emerald-400' : 'text-rose-400'"
-                 x-text="formatTenget(Number(sh.cash_revenue) + Number(sh.card_revenue))"></div>
-            <div class="text-[10px] text-slate-400" x-text="`Кальяны: ${sh.hookahs_count} шт.`"></div>
-          </div>
+    <div id="tab-bar" class="screen">
+      <div class="grid-3">
+        <div class="card">
+          <div class="label-xs"><span>Бар</span><span>🥤</span></div>
+          <div class="val-md text-emerald" id="bar-kpi-rev">0 ₸</div>
+          <div class="subtitle-xs">Напитки и снеки</div>
         </div>
-      </template>
+        <div class="card">
+          <div class="label-xs"><span>Кальяны</span><span>💨</span></div>
+          <div class="val-md text-cyan" id="bar-kpi-hookah-qty">0 шт.</div>
+          <div class="subtitle-xs" id="bar-kpi-hookah-rev">0 ₸</div>
+        </div>
+        <div class="card">
+          <div class="label-xs"><span>PlayStation</span><span>🎮</span></div>
+          <div class="val-md text-indigo" id="bar-kpi-ps">0 ₸</div>
+          <div class="subtitle-xs">Консоли и VIP</div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="openPurchaseModal()">+ Внести закуп товара (накладная / чек)</button>
+
+      <div class="card">
+        <div class="row-between" style="margin-top:0; margin-bottom:6px;">
+          <strong style="font-size:12px; text-transform:uppercase;">Проданные позиции (SmartShell)</strong>
+          <span class="subtitle-xs" id="sold-items-count">0 поз.</span>
+        </div>
+        <div id="sold-items-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="row-between" style="margin-top:0; margin-bottom:6px;">
+          <strong style="font-size:12px; text-transform:uppercase;">История закупок (Кассовый метод)</strong>
+          <strong class="text-rose" style="font-size:12px;" id="purchases-total-label">-0 ₸</strong>
+        </div>
+        <div id="purchases-list"></div>
+      </div>
+    </div>
+
+    <div id="tab-reports" class="screen">
+      <div class="segmented segmented-2">
+        <button class="seg-btn active" id="rep-btn-dds" onclick="setReportTab('dds')">ДДС (Движение денег)</button>
+        <button class="seg-btn" id="rep-btn-pnl" onclick="setReportTab('pnl')">P&L (Прибыль и убытки)</button>
+      </div>
+
+      <div id="report-dds-box" class="card card-emerald">
+        <div class="row-between" style="margin-top:0;"><strong style="font-size:12px;">ОТЧЕТ ДДС (РЕАЛЬНЫЕ ДЕНЬГИ)</strong><span class="badge badge-cyan">Кассовый метод</span></div>
+        <div class="divider"></div>
+        <div class="row-between"><span>+ Наличная выручка кассы:</span><strong class="text-emerald" id="dds-cash">0 ₸</strong></div>
+        <div class="row-between"><span>+ Безналичная выручка (Карты/Kaspi):</span><strong class="text-emerald" id="dds-card">0 ₸</strong></div>
+        <div class="row-between"><span>+ Онлайн-пополнения (авансы):</span><strong class="text-emerald" id="dds-online">0 ₸</strong></div>
+        <div class="divider"></div>
+        <div class="row-between"><strong>ИТОГО ДЕНЕЖНЫЙ ПРИТОК:</strong><strong class="text-emerald" id="dds-inflow-sum">0 ₸</strong></div>
+        <div class="row-between" style="margin-top:10px;"><span>- Выданная ЗП администраторов:</span><strong class="text-rose" id="dds-salary">-0 ₸</strong></div>
+        <div class="row-between"><span>- Закупки бара и расходников:</span><strong class="text-rose" id="dds-purchases">-0 ₸</strong></div>
+        <div class="row-between"><span>- Аренда помещения (20-го числа):</span><strong class="text-rose" id="dds-rent">-0 ₸</strong></div>
+        <div class="row-between"><span>- ЖКХ по квитанции (20-го числа):</span><strong class="text-rose" id="dds-utility">-0 ₸</strong></div>
+        <div class="divider"></div>
+        <div class="row-between" style="font-size:14px;"><strong>ЧИСТЫЙ ДЕНЕЖНЫЙ ПОТОК:</strong><strong id="dds-net-total" class="text-emerald">0 ₸</strong></div>
+      </div>
+
+      <div id="report-pnl-box" class="card card-cyan" style="display:none;">
+        <div class="row-between" style="margin-top:0;"><strong style="font-size:12px;">ОТЧЕТ P&L (ОПЕРАЦИОННЫЙ ВЫХЛОП)</strong><span class="badge badge-cyan">Начисление</span></div>
+        <div class="divider"></div>
+        <div class="row-between"><span>+ Выручка за ПК (Тарифы):</span><strong class="text-cyan" id="pnl-pc">0 ₸</strong></div>
+        <div class="row-between"><span>+ Продажи бара (Напитки/снеки):</span><strong class="text-cyan" id="pnl-bar">0 ₸</strong></div>
+        <div class="row-between"><span>+ Выручка зоны PlayStation:</span><strong class="text-cyan" id="pnl-ps">0 ₸</strong></div>
+        <div class="row-between"><span id="pnl-hookah-label">+ Выручка за Кальяны:</span><strong class="text-cyan" id="pnl-hookah">0 ₸</strong></div>
+        <div class="divider"></div>
+        <div class="row-between"><strong>ИТОГО ОПЕРАЦИОННЫЙ ДОХОД:</strong><strong class="text-cyan" id="pnl-income-sum">0 ₸</strong></div>
+        <div class="row-between" style="margin-top:10px;"><span>- Начисленная ЗП админов:</span><strong class="text-rose" id="pnl-salary">-0 ₸</strong></div>
+        <div class="row-between"><span>- Себестоимость закупок бара/табака:</span><strong class="text-rose" id="pnl-purchases">-0 ₸</strong></div>
+        <div class="row-between"><span>- Аренда и ЖКХ за месяц:</span><strong class="text-rose" id="pnl-fixed">-0 ₸</strong></div>
+        <div class="divider"></div>
+        <div class="row-between" style="font-size:14px;"><strong>ЧИСТАЯ ОПЕРАЦИОННАЯ ПРИБЫЛЬ:</strong><strong id="pnl-net-total" class="text-emerald">0 ₸</strong></div>
+      </div>
+
+      <div class="card">
+        <strong style="font-size:12px; text-transform:uppercase; display:block; margin-bottom:10px;">📊 Динамика выручки по сменам vs План</strong>
+        <canvas id="revenue-canvas" width="380" height="175" style="width:100%; height:175px; display:block;"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="row-between" style="margin-top:0; margin-bottom:6px;">
+          <strong style="font-size:12px; text-transform:uppercase;">📅 Календарь смен</strong>
+          <span class="subtitle-xs">🟢 План выполнен • 🔴 Не выполнен</span>
+        </div>
+        <div id="shifts-calendar-list"></div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="screen">
+      <div class="card">
+        <strong style="font-size:12px; text-transform:uppercase; color:var(--emerald);">🏢 Аренда и ЖКХ (Списание 20-го числа)</strong>
+        <div class="input-group">
+          <label>Базовая стоимость аренды в месяц (₸)</label>
+          <input type="number" id="set-rent" class="input-field" value="500000">
+        </div>
+        <div class="input-group">
+          <label>Сумма ЖКХ за текущий месяц по квитанции (₸)</label>
+          <input type="number" id="set-utility" class="input-field" value="68500">
+        </div>
+        <button class="btn-primary" style="margin-top:12px; margin-bottom:0;" onclick="saveSettings()">Сохранить аренду и ЖКХ</button>
+      </div>
+
+      <div class="card">
+        <strong style="font-size:12px; text-transform:uppercase; color:var(--cyan);">🔌 Подключение SmartShell API и Supabase</strong>
+        <div class="input-group">
+          <label>SmartShell API Token</label>
+          <input type="password" id="set-ss-token" class="input-field" placeholder="Bearer токен SmartShell">
+        </div>
+        <div class="input-group">
+          <label>Supabase Project URL</label>
+          <input type="text" id="set-sb-url" class="input-field" placeholder="https://xxxx.supabase.co">
+        </div>
+        <div class="input-group">
+          <label>Supabase Anon Public Key</label>
+          <input type="password" id="set-sb-key" class="input-field" placeholder="eyJhbGciOi...">
+        </div>
+        <button class="btn-primary" style="margin-top:12px; margin-bottom:0;" onclick="saveCloudConfig()">Подключить и синхронизировать базу</button>
+      </div>
+
+      <div class="card">
+        <strong style="font-size:12px; text-transform:uppercase; color:var(--rose);">🔐 Безопасность и смена PIN-кода</strong>
+        <div class="input-group">
+          <label>Telegram ID владельца</label>
+          <input type="number" id="set-owner-id" class="input-field">
+        </div>
+        <div class="input-group">
+          <label>Новый 4-значный PIN-код</label>
+          <input type="password" maxlength="4" id="set-new-pin" class="input-field" placeholder="Например: 7777">
+        </div>
+        <button class="btn-primary" style="margin-top:12px; margin-bottom:0;" onclick="changePinCode()">Обновить PIN и ID владельца</button>
+      </div>
     </div>
   </div>
-</main>
 
-<!-- =================================================================== -->
-<!-- ЭКРАН 4: НАСТРОЙКИ (АРЕНДА, ЖКХ, PIN-КОД, SMARTSHELL & SUPABASE)     -->
-<!-- =================================================================== -->
-<main x-show="activeTab === 'settings'" class="space-y-4">
-
-  <!-- Финансовые нормативы: Аренда и ЖКХ -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
-    <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-      <i data-lucide="building-2" class="w-4 h-4"></i>
-      Постоянные расходы (Списание 20-го числа)
-    </h3>
-
-    <div>
-      <label class="text-xs text-slate-400 block mb-1">Базовая стоимость аренды в месяц (₸)</label>
-      <input type="number" x-model.number="settings.monthly_rent"
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-emerald-500" />
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="nav-item active" id="nav-dashboard" onclick="switchTab('dashboard')"><span>📊</span><span>Главная</span></button>
+      <button class="nav-item" id="nav-bar" onclick="switchTab('bar')"><span>💨</span><span>Бар и Услуги</span></button>
+      <button class="nav-item" id="nav-reports" onclick="switchTab('reports')"><span>📈</span><span>ДДС и P&L</span></button>
+      <button class="nav-item" id="nav-settings" onclick="switchTab('settings')"><span>⚙️</span><span>Настройки</span></button>
     </div>
+  </nav>
+</div>
 
-    <div>
-      <label class="text-xs text-slate-400 block mb-1">Сумма ЖКХ за текущий месяц по квитанции (₸)</label>
-      <input type="number" x-model.number="currentMonthUtility"
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-cyan-500" />
+<div id="modal-purchase" class="modal-backdrop">
+  <div class="modal-box">
+    <div class="row-between" style="margin-top:0; margin-bottom:10px;">
+      <strong style="font-size:14px;">Внести закуп товара / чек</strong>
+      <button class="btn-small" onclick="closePurchaseModal()">✕</button>
     </div>
-
-    <button @click="saveFinancialSettings()"
-            class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition">
-      Сохранить аренду и ЖКХ
-    </button>
-  </div>
-
-  <!-- Интеграция со SmartShell API -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
-    <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
-      <i data-lucide="plug-zap" class="w-4 h-4"></i>
-      Подключение к SmartShell API (v1/v2)
-    </h3>
-
-    <div>
-      <label class="text-xs text-slate-400 block mb-1">SmartShell Endpoint URL</label>
-      <input type="text" x-model="settings.smartshell_api_url"
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
-    </div>
-
-    <div>
-      <label class="text-xs text-slate-400 block mb-1">SmartShell Bearer API Token</label>
-      <input type="password" x-model="settings.smartshell_api_token" placeholder="eyJhbGciOiJIUzI1NiIsInR5c..."
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
-    </div>
-
-    <button @click="saveFinancialSettings()"
-            class="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition">
-      Обновить токен SmartShell
-    </button>
-  </div>
-
-  <!-- Безопасность: Смена PIN-кода и Owner Telegram ID -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
-    <h3 class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-2">
-      <i data-lucide="key-round" class="w-4 h-4"></i>
-      Безопасность и доступ владельца
-    </h3>
-
-    <div>
-      <label class="text-xs text-slate-400 block mb-1">Разрешенный Telegram ID владельца</label>
-      <input type="number" x-model.number="settings.owner_tg_id"
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white" />
-    </div>
-
-    <div class="flex gap-2">
-      <input type="password" maxlength="4" x-model="newPinCandidate" placeholder="Новый 4-значный PIN"
-             class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white" />
-      <button @click="updatePinCode()"
-              class="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs">
-        Сменить PIN
-      </button>
-    </div>
-  </div>
-
-  <!-- Подключение к облачной БД Supabase -->
-  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
-    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-      <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i>
-      Ключи базы данных Supabase
-    </h3>
-    <div>
-      <label class="text-xs text-slate-400 block mb-1">Supabase Project URL</label>
-      <input type="text" x-model="supabaseConfig.url" placeholder="https://xxxx.supabase.co"
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
-    </div>
-    <div>
-      <label class="text-xs text-slate-400 block mb-1">Supabase Anon Public Key</label>
-      <input type="password" x-model="supabaseConfig.anonKey" placeholder="eyJhbGciOi..."
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200" />
-    </div>
-    <button @click="connectSupabase()"
-            class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs transition">
-      Подключить и синхронизировать Supabase
-    </button>
-  </div>
-</main>
-
-<!-- =================================================================== -->
-<!-- НИЖНЯЯ НАВИГАЦИОННАЯ ПАНЕЛЬ (BOTTOM BAR)                             -->
-<!-- =================================================================== -->
-<nav class="fixed bottom-0 left-0 right-0 z-30 bg-slate-950/95 backdrop-blur-md border-t border-slate-800">
-  <div class="max-w-md mx-auto grid grid-cols-4 py-2 px-2">
-    <button @click="switchTab('dashboard')"
-            :class="activeTab === 'dashboard' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'"
-            class="flex flex-col items-center py-1 gap-1 transition">
-      <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-      <span class="text-[10px] font-bold">Главная</span>
-    </button>
-
-    <button @click="switchTab('bar')"
-            :class="activeTab === 'bar' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'"
-            class="flex flex-col items-center py-1 gap-1 transition">
-      <i data-lucide="Flame" class="w-5 h-5"></i>
-      <span class="text-[10px] font-bold">Бар и Услуги</span>
-    </button>
-
-    <button @click="switchTab('reports')"
-            :class="activeTab === 'reports' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'"
-            class="flex flex-col items-center py-1 gap-1 transition">
-      <i data-lucide="pie-chart" class="w-5 h-5"></i>
-      <span class="text-[10px] font-bold">ДДС и P&L</span>
-    </button>
-
-    <button @click="switchTab('settings')"
-            :class="activeTab === 'settings' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'"
-            class="flex flex-col items-center py-1 gap-1 transition">
-      <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
-      <span class="text-[10px] font-bold">Настройки</span>
-    </button>
-  </div>
-</nav>
-
-<!-- =================================================================== -->
-<!-- МОДАЛЬНОЕ ОКНО: ВНЕСТИ ЗАКУП ТОВАРА (НАКЛАДНАЯ / ЧЕК)               -->
-<!-- =================================================================== -->
-<div x-show="showPurchaseModal" x-cloak class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-  <div @click.away="showPurchaseModal = false" class="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
-    <div class="flex items-center justify-between">
-      <h3 class="text-sm font-extrabold text-white uppercase">Новый закуп товара / расходников</h3>
-      <button @click="showPurchaseModal = false" class="text-slate-400 hover:text-white">
-        <i data-lucide="x" class="w-5 h-5"></i>
-      </button>
-    </div>
-
-    <div class="grid grid-cols-2 gap-2.5">
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">Категория</label>
-        <select x-model="newPurchase.category" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+    <div class="grid-2" style="margin-bottom:0;">
+      <div class="input-group">
+        <label>Категория</label>
+        <select id="pur-cat" class="input-field">
           <option value="Напитки">Напитки</option>
           <option value="Снеки">Снеки</option>
           <option value="Табак">Табак (Кальяны)</option>
           <option value="Расходники">Расходники</option>
         </select>
       </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">Источник оплаты</label>
-        <select x-model="newPurchase.payment_source" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
-          <option value="cash">Из кассы (Наличные)</option>
-          <option value="bank">Со счета (Kaspi / Безнал)</option>
+      <div class="input-group">
+        <label>Оплата</label>
+        <select id="pur-source" class="input-field">
+          <option value="cash">Из кассы (Нал)</option>
+          <option value="bank">Со счета (Безнал)</option>
         </select>
       </div>
     </div>
-
-    <div>
-      <label class="text-[11px] text-slate-400 block mb-1">Наименование позиции</label>
-      <input type="text" x-model="newPurchase.item_name" placeholder="Напр.: Блок Red Bull 24 шт. / Табак Darkside"
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white" />
+    <div class="input-group">
+      <label>Наименование позиции</label>
+      <input type="text" id="pur-name" class="input-field" placeholder="Упаковка Red Bull / Табак Darkside">
     </div>
-
-    <div class="grid grid-cols-2 gap-2.5">
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">Количество</label>
-        <input type="number" x-model.number="newPurchase.quantity" min="1"
-               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white" />
+    <div class="grid-2" style="margin-bottom:14px;">
+      <div class="input-group">
+        <label>Количество</label>
+        <input type="number" id="pur-qty" class="input-field" value="1">
       </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">Сумма закупа (₸)</label>
-        <input type="number" x-model.number="newPurchase.total_cost" min="0" placeholder="15000"
-               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-bold text-emerald-400" />
+      <div class="input-group">
+        <label>Сумма закупа (₸)</label>
+        <input type="number" id="pur-cost" class="input-field" placeholder="12000">
       </div>
     </div>
-
-    <button @click="submitBarPurchase()"
-            class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition">
-      Провести накладную и пересчитать кассу
-    </button>
+    <button class="btn-primary" style="margin-bottom:0;" onclick="submitPurchase()">Провести накладную</button>
   </div>
 </div>
 
-<!-- =================================================================== -->
-<!-- МОДАЛЬНОЕ ОКНО: СВЕРКА ФАКТИЧЕСКИХ НАЛИЧНЫХ КАССЫ                   -->
-<!-- =================================================================== -->
-<div x-show="showCashModal" x-cloak class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-  <div @click.away="showCashModal = false" class="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-sm space-y-3">
-    <h3 class="text-sm font-extrabold text-white uppercase">Сверка кассы текущей смены</h3>
-    <div>
-      <label class="text-[11px] text-slate-400 block mb-1">Фактические наличные в кассе (SmartShell, ₸)</label>
-      <input type="number" x-model.number="currentShift.cash_end_actual"
-             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm font-bold text-white" />
+<div id="modal-cash" class="modal-backdrop">
+  <div class="modal-box">
+    <div class="row-between" style="margin-top:0; margin-bottom:10px;">
+      <strong style="font-size:14px;">Сверка наличных в кассе</strong>
+      <button class="btn-small" onclick="closeCashModal()">✕</button>
     </div>
-    <div class="text-xs text-slate-400 flex justify-between">
-      <span>Ожидаемые по формуле:</span>
-      <span class="text-emerald-400 font-bold" x-text="formatTenget(expectedCashEnd)"></span>
+    <div class="input-group" style="margin-bottom:14px;">
+      <label>Фактические наличные на конец смены (SmartShell, ₸)</label>
+      <input type="number" id="cash-actual-input" class="input-field">
     </div>
-    <button @click="saveCashVerification()"
-            class="w-full py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs">
-      Сохранить факт кассы
-    </button>
+    <button class="btn-primary" style="margin-bottom:0;" onclick="saveCashActual()">Сохранить и проверить кассу</button>
   </div>
 </div>
+
+<script>
+var state = {
+  currentTgId: 123456789,
+  ownerTgId: Number(localStorage.getItem('cf_owner_tg_id')) || 0,
+  pinCode: localStorage.getItem('cf_pin_code') || '',
+  pinBuffer: '',
+  isCreatingPin: false,
+  period: 'current_shift',
+  reportTab: 'dds',
+  monthlyRent: Number(localStorage.getItem('cf_monthly_rent')) || 500000,
+  utilityBill: Number(localStorage.getItem('cf_utility_bill')) || 68500,
+  sbUrl: localStorage.getItem('cf_sb_url') || '',
+  sbKey: localStorage.getItem('cf_sb_key') || '',
+  ssToken: localStorage.getItem('cf_ss_token') || '',
+  sbClient: null,
+  shifts: [
+    {
+      id: 's5',
+      shift_date: '2026-10-17',
+      shift_type: 'day',
+      is_weekend_rate: true,
+      admin_name_snapshot: 'Данияр М.',
+      cash_revenue: 19500,
+      card_revenue: 23000,
+      online_topups: 12500,
+      deposit_spends: 9800,
+      pc_tariffs_revenue: 28400,
+      bar_revenue: 10200,
+      ps_revenue: 5400,
+      hookahs_count: 5,
+      hookahs_revenue: 15000,
+      plan_amount: 40000,
+      cash_start: 57500,
+      cash_end_actual: 67500,
+      sold_items_json: [
+        { name: 'Red Bull 0.25', category: 'Напитки', qty: 6, sum: 4800 },
+        { name: 'Сэндвич с индейкой', category: 'Снеки', qty: 4, sum: 3400 },
+        { name: 'Fanta 0.5', category: 'Напитки', qty: 4, sum: 2000 }
+      ]
+    },
+    {
+      id: 's4',
+      shift_date: '2026-10-16',
+      shift_type: 'night',
+      is_weekend_rate: true,
+      admin_name_snapshot: 'Алишер К.',
+      cash_revenue: 22000,
+      card_revenue: 29000,
+      online_topups: 18500,
+      deposit_spends: 16000,
+      pc_tariffs_revenue: 38000,
+      bar_revenue: 14000,
+      ps_revenue: 7500,
+      hookahs_count: 7,
+      hookahs_revenue: 21000,
+      plan_amount: 40000,
+      cash_start: 41500,
+      cash_end_actual: 57500,
+      sold_items_json: [
+        { name: 'Red Bull 0.25', category: 'Напитки', qty: 10, sum: 8000 },
+        { name: 'Сэндвич двойной', category: 'Снеки', qty: 5, sum: 6000 }
+      ]
+    },
+    {
+      id: 's3',
+      shift_date: '2026-10-16',
+      shift_type: 'day',
+      is_weekend_rate: false,
+      admin_name_snapshot: 'Тимур С.',
+      cash_revenue: 11000,
+      card_revenue: 16500,
+      online_topups: 8000,
+      deposit_spends: 7400,
+      pc_tariffs_revenue: 19500,
+      bar_revenue: 6400,
+      ps_revenue: 3000,
+      hookahs_count: 2,
+      hookahs_revenue: 6000,
+      plan_amount: 30000,
+      cash_start: 35500,
+      cash_end_actual: 41500,
+      sold_items_json: [
+        { name: 'Coca-Cola 0.5', category: 'Напитки', qty: 8, sum: 4000 },
+        { name: 'Snickers Super', category: 'Снеки', qty: 4, sum: 2400 }
+      ]
+    },
+    {
+      id: 's2',
+      shift_date: '2026-10-15',
+      shift_type: 'night',
+      is_weekend_rate: false,
+      admin_name_snapshot: 'Данияр М.',
+      cash_revenue: 18000,
+      card_revenue: 26500,
+      online_topups: 15000,
+      deposit_spends: 13200,
+      pc_tariffs_revenue: 32500,
+      bar_revenue: 11200,
+      ps_revenue: 6000,
+      hookahs_count: 6,
+      hookahs_revenue: 18000,
+      plan_amount: 30000,
+      cash_start: 23500,
+      cash_end_actual: 35500,
+      sold_items_json: [
+        { name: 'Monster Energy 0.5', category: 'Напитки', qty: 8, sum: 6400 },
+        { name: 'Чипсы Lays 140г', category: 'Снеки', qty: 6, sum: 4800 }
+      ]
+    }
+  ],
+  purchases: [
+    { id: 'p1', shift_id: 's5', purchase_date: '2026-10-17', category: 'Напитки', item_name: 'Упаковка Red Bull (24 банки)', quantity: 1, total_cost: 3500, payment_source: 'cash' },
+    { id: 'p2', shift_id: 's4', purchase_date: '2026-10-16', category: 'Табак', item_name: 'Darkside 250г + Уголь Crown', quantity: 2, total_cost: 18500, payment_source: 'bank' }
+  ]
+};
+
+function haptic(style) {
+  try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      if (style === 'error' || style === 'success') {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred(style);
+      } else {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+      }
+    }
+  } catch (e) {}
+}
+
+function fmt(num) {
+  var n = Math.round(Number(num) || 0);
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₸';
+}
+
+function showTopScreen(screenId) {
+  document.getElementById('screen-forbidden').classList.remove('active');
+  document.getElementById('screen-pin').classList.remove('active');
+  document.getElementById('screen-app').classList.remove('active');
+  document.getElementById(screenId).classList.add('active');
+}
+
+function initApp() {
+  try {
+    if (window.Telegram && window.Telegram.WebApp) {
+      var tg = window.Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+      if (tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+        state.currentTgId = Number(tg.initDataUnsafe.user.id);
+      }
+    }
+  } catch (e) {}
+
+  if (!state.ownerTgId) {
+    state.ownerTgId = state.currentTgId;
+    localStorage.setItem('cf_owner_tg_id', String(state.ownerTgId));
+  }
+
+  document.getElementById('set-rent').value = state.monthlyRent;
+  document.getElementById('set-utility').value = state.utilityBill;
+  document.getElementById('set-owner-id').value = state.ownerTgId;
+  document.getElementById('set-sb-url').value = state.sbUrl;
+  document.getElementById('set-sb-key').value = state.sbKey;
+  document.getElementById('set-ss-token').value = state.ssToken;
+
+  if (state.sbUrl && state.sbKey) {
+    connectSupabaseSilent();
+  }
+
+  if (Number(state.currentTgId) !== Number(state.ownerTgId)) {
+    document.getElementById('forbidden-current-id').textContent = String(state.currentTgId);
+    document.getElementById('forbidden-owner-id').textContent = String(state.ownerTgId);
+    showTopScreen('screen-forbidden');
+    return;
+  }
+
+  if (!state.pinCode) {
+    state.isCreatingPin = true;
+    document.getElementById('pin-title').textContent = 'Задайте 4-значный PIN-код';
+    document.getElementById('pin-subtitle').textContent = 'Он будет запрашиваться при каждом входе в Mini App';
+  } else {
+    state.isCreatingPin = false;
+    document.getElementById('pin-title').textContent = 'Введите PIN-код владельца';
+    document.getElementById('pin-subtitle').textContent = 'Защищенный финансовый контур клуба';
+  }
+  showTopScreen('screen-pin');
+}
+
+function bindCurrentOwner() {
+  haptic('success');
+  state.ownerTgId = state.currentTgId;
+  localStorage.setItem('cf_owner_tg_id', String(state.ownerTgId));
+  document.getElementById('set-owner-id').value = state.ownerTgId;
+  initApp();
+}
+
+function updatePinDots(isErr) {
+  for (var i = 0; i < 4; i++) {
+    var d = document.getElementById('dot-' + i);
+    d.className = 'pin-dot';
+    if (i < state.pinBuffer.length) {
+      d.classList.add(isErr ? 'error' : 'filled');
+    }
+  }
+}
+
+function pressPin(digit) {
+  haptic('light');
+  document.getElementById('pin-error-msg').textContent = '';
+  if (state.pinBuffer.length < 4) {
+    state.pinBuffer += digit;
+    updatePinDots(false);
+  }
+  if (state.pinBuffer.length === 4) {
+    setTimeout(checkPinBuffer, 120);
+  }
+}
+
+function delPin() {
+  haptic('light');
+  state.pinBuffer = state.pinBuffer.slice(0, -1);
+  updatePinDots(false);
+}
+
+function checkPinBuffer() {
+  if (state.isCreatingPin) {
+    state.pinCode = state.pinBuffer;
+    localStorage.setItem('cf_pin_code', state.pinCode);
+    state.pinBuffer = '';
+    state.isCreatingPin = false;
+    haptic('success');
+    showTopScreen('screen-app');
+    renderAll();
+    return;
+  }
+  if (state.pinBuffer === state.pinCode) {
+    state.pinBuffer = '';
+    updatePinDots(false);
+    haptic('success');
+    showTopScreen('screen-app');
+    renderAll();
+  } else {
+    haptic('error');
+    updatePinDots(true);
+    document.getElementById('pin-error-msg').textContent = 'Неверный PIN-код. Попробуйте снова.';
+    setTimeout(function() {
+      state.pinBuffer = '';
+      updatePinDots(false);
+    }, 450);
+  }
+}
+
+function switchTab(tabName) {
+  haptic('light');
+  var tabs = ['dashboard', 'bar', 'reports', 'settings'];
+  for (var i = 0; i < tabs.length; i++) {
+    var t = tabs[i];
+    document.getElementById('tab-' + t).classList.remove('active');
+    document.getElementById('nav-' + t).classList.remove('active');
+  }
+  document.getElementById('tab-' + tabName).classList.add('active');
+  document.getElementById('nav-' + tabName).classList.add('active');
+  if (tabName === 'reports') {
+    drawRevenueChart();
+  }
+}
+
+function setPeriod(p) {
+  haptic('light');
+  state.period = p;
+  document.getElementById('period-current_shift').classList.remove('active');
+  document.getElementById('period-today').classList.remove('active');
+  document.getElementById('period-month').classList.remove('active');
+  document.getElementById('period-' + p).classList.add('active');
+  renderAll();
+}
+
+function setReportTab(rt) {
+  haptic('light');
+  state.reportTab = rt;
+  var btnDds = document.getElementById('rep-btn-dds');
+  var btnPnl = document.getElementById('rep-btn-pnl');
+  btnDds.className = 'seg-btn' + (rt === 'dds' ? ' active' : '');
+  btnPnl.className = 'seg-btn' + (rt === 'pnl' ? ' active-cyan' : '');
+  document.getElementById('report-dds-box').style.display = rt === 'dds' ? 'block' : 'none';
+  document.getElementById('report-pnl-box').style.display = rt === 'pnl' ? 'block' : 'none';
+}
+
+function getFilteredShifts() {
+  if (state.period === 'current_shift') return state.shifts.slice(0, 1);
+  if (state.period === 'today') return state.shifts.slice(0, 2);
+  return state.shifts;
+}
+
+function getFilteredPurchases(filteredShifts) {
+  if (state.period === 'month') return state.purchases;
+  var ids = {};
+  for (var i = 0; i < filteredShifts.length; i++) ids[filteredShifts[i].id] = true;
+  return state.purchases.filter(function(p) { return ids[p.shift_id]; });
+}
+
+function renderAll() {
+  var cur = state.shifts[0] || {};
+  var curStdRev = Number(cur.cash_revenue || 0) + Number(cur.card_revenue || 0);
+  var curPlan = Number(cur.plan_amount || 30000);
+  var curPlanOk = curStdRev >= curPlan;
+  var curSalary = curPlanOk ? 6000 : 5000;
+
+  var curCashPurchases = 0;
+  for (var i = 0; i < state.purchases.length; i++) {
+    if (state.purchases[i].shift_id === cur.id && state.purchases[i].payment_source === 'cash') {
+      curCashPurchases += Number(state.purchases[i].total_cost || 0);
+    }
+  }
+
+  var expectedCash = Number(cur.cash_start || 0) + Number(cur.cash_revenue || 0) - curSalary - curCashPurchases;
+  var actualCash = Number(cur.cash_end_actual || 0);
+  var discrepancy = actualCash - expectedCash;
+
+  document.getElementById('shift-admin-name').textContent = cur.admin_name_snapshot || 'Администратор';
+  var badgeEl = document.getElementById('shift-type-badge');
+  badgeEl.textContent = cur.shift_type === 'day' ? 'День (10-22)' : 'Ночь (22-10)';
+  badgeEl.className = 'badge ' + (cur.shift_type === 'day' ? 'badge-day' : 'badge-night');
+  document.getElementById('shift-rate-label').textContent = 'Тариф плана: ' + (cur.is_weekend_rate ? 'Выходной (40 000 ₸)' : 'Будни (30 000 ₸)');
+  document.getElementById('shift-salary-val').textContent = fmt(curSalary);
+  document.getElementById('shift-plan-progress-text').textContent = fmt(curStdRev) + ' / ' + fmt(curPlan);
+
+  var pct = Math.min(100, Math.round((curStdRev / curPlan) * 100));
+  document.getElementById('shift-plan-bar').style.width = pct + '%';
+  document.getElementById('shift-cash-card-split').textContent = 'Нал: ' + fmt(cur.cash_revenue) + ' • Карта: ' + fmt(cur.card_revenue);
+
+  var bonusEl = document.getElementById('shift-bonus-status');
+  if (curPlanOk) {
+    bonusEl.textContent = '🏆 Бонус +1 000 ₸ начислен!';
+    bonusEl.className = 'text-emerald';
+  } else {
+    bonusEl.textContent = 'До бонуса: ' + fmt(curPlan - curStdRev);
+    bonusEl.className = 'text-cyan';
+  }
+
+  var secCard = document.getElementById('cash-security-card');
+  var secTitle = document.getElementById('cash-sec-title');
+  var secDesc = document.getElementById('cash-sec-desc');
+  if (discrepancy === 0) {
+    secCard.className = 'card card-emerald';
+    secTitle.className = 'text-emerald';
+    secTitle.textContent = '✓ Касса в безопасности (Сходится)';
+    secDesc.textContent = 'Фактический остаток SmartShell совпадает с расчетным.';
+  } else {
+    secCard.className = 'card card-rose';
+    secTitle.className = 'text-rose';
+    secTitle.textContent = '🚨 Алерт! Расхождение наличных в кассе';
+    secDesc.textContent = discrepancy < 0 ? ('Обнаружена НЕДОСТАЧА: -' + fmt(Math.abs(discrepancy))) : ('Обнаружен ИЗЛИШЕК: +' + fmt(discrepancy));
+  }
+  document.getElementById('cash-start-val').textContent = fmt(cur.cash_start);
+  document.getElementById('cash-rev-val').textContent = '+' + fmt(cur.cash_revenue);
+  document.getElementById('cash-out-val').textContent = '-' + fmt(curSalary + curCashPurchases);
+  document.getElementById('cash-exp-act-val').textContent = fmt(expectedCash) + ' / ' + fmt(actualCash);
+
+  var fShifts = getFilteredShifts();
+  var fPur = getFilteredPurchases(fShifts);
+
+  var cashRev = 0, cardRev = 0, topups = 0, depSpends = 0;
+  var pcRev = 0, barRev = 0, psRev = 0, hookQty = 0, hookRev = 0, salSum = 0;
+
+  for (var j = 0; j < fShifts.length; j++) {
+    var s = fShifts[j];
+    var stRev = Number(s.cash_revenue || 0) + Number(s.card_revenue || 0);
+    var sSal = stRev >= Number(s.plan_amount || 30000) ? 6000 : 5000;
+    cashRev += Number(s.cash_revenue || 0);
+    cardRev += Number(s.card_revenue || 0);
+    topups += Number(s.online_topups || 0);
+    depSpends += Number(s.deposit_spends || 0);
+    pcRev += Number(s.pc_tariffs_revenue || 0);
+    barRev += Number(s.bar_revenue || 0);
+    psRev += Number(s.ps_revenue || 0);
+    hookQty += Number(s.hookahs_count || 0);
+    hookRev += Number(s.hookahs_revenue || 0);
+    salSum += sSal;
+  }
+
+  var purSum = 0;
+  for (var k = 0; k < fPur.length; k++) purSum += Number(fPur[k].total_cost || 0);
+
+  var fixedMonthly = Number(state.monthlyRent) + Number(state.utilityBill);
+  var allocFixed = state.period === 'month' ? fixedMonthly : Math.round((fixedMonthly / 60) * fShifts.length);
+  var ddsFixed = (state.period === 'month' && new Date().getDate() >= 20) ? fixedMonthly : 0;
+
+  var inflow = cashRev + cardRev + topups;
+  var outflow = salSum + purSum + ddsFixed;
+  var netCash = inflow - outflow;
+
+  var pnlInc = pcRev + barRev + psRev + hookRev;
+  var pnlExp = salSum + purSum + allocFixed;
+  var pnlNet = pnlInc - pnlExp;
+
+  document.getElementById('kpi-net-cashflow').textContent = fmt(netCash);
+  document.getElementById('kpi-net-cashflow').className = 'val-lg ' + (netCash >= 0 ? 'text-emerald' : 'text-rose');
+  document.getElementById('kpi-inflow').textContent = '+' + fmt(inflow);
+  document.getElementById('kpi-outflow').textContent = '-' + fmt(outflow);
+
+  document.getElementById('kpi-pnl-income').textContent = fmt(pnlInc);
+  document.getElementById('kpi-pnl-exp').textContent = '-' + fmt(pnlExp);
+  document.getElementById('kpi-pnl-net').textContent = fmt(pnlNet);
+  document.getElementById('kpi-pnl-net').className = pnlNet >= 0 ? 'text-emerald' : 'text-rose';
+
+  document.getElementById('kpi-online-topups').textContent = fmt(topups);
+  document.getElementById('kpi-deposit-spends').textContent = fmt(depSpends);
+  var diff = topups - depSpends;
+  document.getElementById('kpi-deposit-diff').textContent = 'Сальдо: ' + (diff >= 0 ? '+' : '') + fmt(diff);
+
+  var now = new Date();
+  var target20 = new Date(now.getFullYear(), now.getMonth(), 20, 23, 59, 59);
+  if (now.getDate() > 20) target20 = new Date(now.getFullYear(), now.getMonth() + 1, 20, 23, 59, 59);
+  var daysLeft = Math.max(1, Math.ceil((target20 - now) / 86400000));
+
+  var mInflow = 0, mSal = 0, mPur = 0;
+  for (var m = 0; m < state.shifts.length; m++) {
+    var ms = state.shifts[m];
+    mInflow += Number(ms.cash_revenue || 0) + Number(ms.card_revenue || 0) + Number(ms.online_topups || 0);
+    mSal += (Number(ms.cash_revenue || 0) + Number(ms.card_revenue || 0)) >= Number(ms.plan_amount || 30000) ? 6000 : 5000;
+  }
+  for (var n = 0; n < state.purchases.length; n++) mPur += Number(state.purchases[n].total_cost || 0);
+
+  var collected = Math.max(0, mInflow - mSal - mPur);
+  var remToCollect = Math.max(0, fixedMonthly - collected);
+  var pace = Math.ceil(remToCollect / daysLeft);
+  var rentPct = Math.min(100, Math.round((collected / fixedMonthly) * 100));
+
+  document.getElementById('rent-days-left').textContent = daysLeft + ' дн.';
+  document.getElementById('rent-collected-text').textContent = fmt(collected) + ' из ' + fmt(fixedMonthly);
+  document.getElementById('rent-progress-bar').style.width = rentPct + '%';
+  document.getElementById('rent-breakdown-text').textContent = 'Аренда: ' + fmt(state.monthlyRent) + ' + ЖКХ: ' + fmt(state.utilityBill);
+  document.getElementById('rent-daily-pace').textContent = fmt(pace) + '/сут';
+
+  document.getElementById('bar-kpi-rev').textContent = fmt(barRev);
+  document.getElementById('bar-kpi-hookah-qty').textContent = hookQty + ' шт.';
+  document.getElementById('bar-kpi-hookah-rev').textContent = fmt(hookRev);
+  document.getElementById('bar-kpi-ps').textContent = fmt(psRev);
+
+  var itemMap = {};
+  var soldArr = [];
+  for (var x = 0; x < fShifts.length; x++) {
+    var items = fShifts[x].sold_items_json || [];
+    for (var y = 0; y < items.length; y++) {
+      var it = items[y];
+      if (!itemMap[it.name]) {
+        itemMap[it.name] = { name: it.name, category: it.category || 'Бар', qty: 0, sum: 0 };
+        soldArr.push(itemMap[it.name]);
+      }
+      itemMap[it.name].qty += Number(it.qty || 1);
+      itemMap[it.name].sum += Number(it.sum || 0);
+    }
+  }
+  document.getElementById('sold-items-count').textContent = soldArr.length + ' поз.';
+  var soldHtml = '';
+  for (var z = 0; z < soldArr.length; z++) {
+    var si = soldArr[z];
+    soldHtml += '<div class="item-row"><div><strong>' + si.name + '</strong><div class="subtitle-xs text-cyan">' + si.category + '</div></div><div style="text-align:right;"><strong class="text-emerald">' + fmt(si.sum) + '</strong><div class="subtitle-xs">' + si.qty + ' шт.</div></div></div>';
+  }
+  document.getElementById('sold-items-list').innerHTML = soldHtml || '<div class="subtitle-xs" style="text-align:center; padding:12px;">Нет продаж за период</div>';
+
+  document.getElementById('purchases-total-label').textContent = '-' + fmt(mPur);
+  var purHtml = '';
+  for (var pIdx = 0; pIdx < state.purchases.length; pIdx++) {
+    var pr = state.purchases[pIdx];
+    var srcBadge = pr.payment_source === 'cash' ? 'Из кассы (Нал)' : 'Со счета';
+    purHtml += '<div class="item-row"><div><strong>' + pr.item_name + '</strong><div class="subtitle-xs">' + pr.purchase_date + ' • <span class="text-cyan">' + pr.category + '</span> • ' + srcBadge + '</div></div><div style="text-align:right;"><strong class="text-rose">-' + fmt(pr.total_cost) + '</strong><div class="subtitle-xs">' + pr.quantity + ' ед.</div></div></div>';
+  }
+  document.getElementById('purchases-list').innerHTML = purHtml;
+
+  var totCash = 0, totCard = 0, totOnline = 0, totPc = 0, totBar = 0, totPs = 0, totHookQ = 0, totHookR = 0;
+  for (var r = 0; r < state.shifts.length; r++) {
+    var rs = state.shifts[r];
+    totCash += Number(rs.cash_revenue || 0);
+    totCard += Number(rs.card_revenue || 0);
+    totOnline += Number(rs.online_topups || 0);
+    totPc += Number(rs.pc_tariffs_revenue || 0);
+    totBar += Number(rs.bar_revenue || 0);
+    totPs += Number(rs.ps_revenue || 0);
+    totHookQ += Number(rs.hookahs_count || 0);
+    totHookR += Number(rs.hookahs_revenue || 0);
+  }
+  var totDdsIn = totCash + totCard + totOnline;
+  var totDdsNet = totDdsIn - (mSal + mPur + state.monthlyRent + state.utilityBill);
+  var totPnlIn = totPc + totBar + totPs + totHookR;
+  var totPnlNet = totPnlIn - (mSal + mPur + state.monthlyRent + state.utilityBill);
+
+  document.getElementById('dds-cash').textContent = fmt(totCash);
+  document.getElementById('dds-card').textContent = fmt(totCard);
+  document.getElementById('dds-online').textContent = fmt(totOnline);
+  document.getElementById('dds-inflow-sum').textContent = fmt(totDdsIn);
+  document.getElementById('dds-salary').textContent = '-' + fmt(mSal);
+  document.getElementById('dds-purchases').textContent = '-' + fmt(mPur);
+  document.getElementById('dds-rent').textContent = '-' + fmt(state.monthlyRent);
+  document.getElementById('dds-utility').textContent = '-' + fmt(state.utilityBill);
+  document.getElementById('dds-net-total').textContent = fmt(totDdsNet);
+  document.getElementById('dds-net-total').className = totDdsNet >= 0 ? 'text-emerald' : 'text-rose';
+
+  document.getElementById('pnl-pc').textContent = fmt(totPc);
+  document.getElementById('pnl-bar').textContent = fmt(totBar);
+  document.getElementById('pnl-ps').textContent = fmt(totPs);
+  document.getElementById('pnl-hookah-label').textContent = '+ Выручка за Кальяны (' + totHookQ + ' шт.):';
+  document.getElementById('pnl-hookah').textContent = fmt(totHookR);
+  document.getElementById('pnl-income-sum').textContent = fmt(totPnlIn);
+  document.getElementById('pnl-salary').textContent = '-' + fmt(mSal);
+  document.getElementById('pnl-purchases').textContent = '-' + fmt(mPur);
+  document.getElementById('pnl-fixed').textContent = '-' + fmt(state.monthlyRent + state.utilityBill);
+  document.getElementById('pnl-net-total').textContent = fmt(totPnlNet);
+  document.getElementById('pnl-net-total').className = totPnlNet >= 0 ? 'text-emerald' : 'text-rose';
+
+  var calHtml = '';
+  for (var c = 0; c < state.shifts.length; c++) {
+    var cs = state.shifts[c];
+    var cStd = Number(cs.cash_revenue || 0) + Number(cs.card_revenue || 0);
+    var cOk = cStd >= Number(cs.plan_amount || 30000);
+    var cSal = cOk ? 6000 : 5000;
+    var dot = cOk ? '🟢' : '🔴';
+    var shLbl = cs.shift_type === 'day' ? 'День' : 'Ночь';
+    calHtml += '<div class="item-row"><div><strong>' + dot + ' ' + cs.shift_date + ' (' + shLbl + ') • ' + cs.admin_name_snapshot + '</strong><div class="subtitle-xs">План: ' + fmt(cs.plan_amount) + ' • ЗП: ' + fmt(cSal) + '</div></div><div style="text-align:right;"><strong class="' + (cOk ? 'text-emerald' : 'text-rose') + '">' + fmt(cStd) + '</strong><div class="subtitle-xs">Кальяны: ' + cs.hookahs_count + ' шт.</div></div></div>';
+  }
+  document.getElementById('shifts-calendar-list').innerHTML = calHtml;
+}
+
+function drawRevenueChart() {
+  var canvas = document.getElementById('revenue-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.width;
+  var h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  var list = state.shifts.slice().reverse();
+  if (!list.length) return;
+
+  var maxVal = 50000;
+  for (var i = 0; i < list.length; i++) {
+    var v = Number(list[i].cash_revenue) + Number(list[i].card_revenue);
+    if (v > maxVal) maxVal = v + 5000;
+  }
+
+  var padL = 16, padR = 16, padT = 22, padB = 28;
+  var chartW = w - padL - padR;
+  var chartH = h - padT - padB;
+  var colW = chartW / list.length;
+
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT + chartH);
+  ctx.lineTo(w - padR, padT + chartH);
+  ctx.stroke();
+
+  for (var j = 0; j < list.length; j++) {
+    var s = list[j];
+    var rev = Number(s.cash_revenue) + Number(s.card_revenue);
+    var plan = Number(s.plan_amount);
+    var barH = Math.round((rev / maxVal) * chartH);
+    var barX = padL + j * colW + colW * 0.22;
+    var barW = colW * 0.56;
+    var barY = padT + chartH - barH;
+
+    ctx.fillStyle = rev >= plan ? '#10b981' : '#f43f5e';
+    ctx.fillRect(barX, barY, barW, barH);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(Math.round(rev / 1000) + 'k', barX + barW / 2, barY - 5);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px sans-serif';
+    var lbl = s.shift_date.slice(8) + '.' + s.shift_date.slice(5, 7) + (s.shift_type === 'day' ? 'Д' : 'Н');
+    ctx.fillText(lbl, barX + barW / 2, h - 8);
+  }
+}
+
+function openPurchaseModal() {
+  haptic('light');
+  document.getElementById('modal-purchase').classList.add('active');
+}
+
+function closePurchaseModal() {
+  document.getElementById('modal-purchase').classList.remove('active');
+}
+
+function submitPurchase() {
+  var name = document.getElementById('pur-name').value.trim();
+  var cost = Number(document.getElementById('pur-cost').value);
+  var qty = Number(document.getElementById('pur-qty').value) || 1;
+  var cat = document.getElementById('pur-cat').value;
+  var src = document.getElementById('pur-source').value;
+
+  if (!name || !cost) return;
+  haptic('success');
+
+  var curShift = state.shifts[0];
+  var item = {
+    id: 'p_' + Date.now(),
+    shift_id: curShift ? curShift.id : null,
+    purchase_date: new Date().toISOString().slice(0, 10),
+    category: cat,
+    item_name: name,
+    quantity: qty,
+    total_cost: cost,
+    payment_source: src
+  };
+  state.purchases.unshift(item);
+
+  if (state.sbClient) {
+    state.sbClient.from('bar_purchases').insert([{
+      shift_id: item.shift_id,
+      purchase_date: item.purchase_date,
+      category: item.category,
+      item_name: item.item_name,
+      quantity: item.quantity,
+      total_cost: item.total_cost,
+      payment_source: item.payment_source
+    }]);
+  }
+
+  document.getElementById('pur-name').value = '';
+  document.getElementById('pur-cost').value = '';
+  closePurchaseModal();
+  renderAll();
+}
+
+function openCashModal() {
+  haptic('light');
+  var cur = state.shifts[0] || {};
+  document.getElementById('cash-actual-input').value = cur.cash_end_actual || 0;
+  document.getElementById('modal-cash').classList.add('active');
+}
+
+function closeCashModal() {
+  document.getElementById('modal-cash').classList.remove('active');
+}
+
+function saveCashActual() {
+  haptic('success');
+  var val = Number(document.getElementById('cash-actual-input').value) || 0;
+  if (state.shifts[0]) {
+    state.shifts[0].cash_end_actual = val;
+  }
+  closeCashModal();
+  renderAll();
+}
+
+function saveSettings() {
+  haptic('success');
+  state.monthlyRent = Number(document.getElementById('set-rent').value) || 500000;
+  state.utilityBill = Number(document.getElementById('set-utility').value) || 0;
+  localStorage.setItem('cf_monthly_rent', String(state.monthlyRent));
+  localStorage.setItem('cf_utility_bill', String(state.utilityBill));
+  renderAll();
+  alert('Аренда и ЖКХ успешно сохранены!');
+}
+
+function changePinCode() {
+  var newOwner = Number(document.getElementById('set-owner-id').value);
+  var newPin = document.getElementById('set-new-pin').value.trim();
+  if (newOwner) {
+    state.ownerTgId = newOwner;
+    localStorage.setItem('cf_owner_tg_id', String(newOwner));
+  }
+  if (newPin) {
+    if (!/^\d{4}$/.test(newPin)) {
+      alert('PIN-код должен состоять ровно из 4 цифр');
+      return;
+    }
+    state.pinCode = newPin;
+    localStorage.setItem('cf_pin_code', newPin);
+    document.getElementById('set-new-pin').value = '';
+  }
+  haptic('success');
+  alert('Настройки безопасности обновлены!');
+}
+
+async function connectSupabaseSilent() {
+  try {
+    if (!window.supabase || !state.sbUrl || !state.sbKey) return;
+    state.sbClient = window.supabase.createClient(state.sbUrl, state.sbKey);
+    var resShifts = await state.sbClient.from('shifts').select('*').order('shift_date', { ascending: false });
+    if (resShifts.data && resShifts.data.length > 0) {
+      state.shifts = resShifts.data;
+    }
+    var resPur = await state.sbClient.from('bar_purchases').select('*').order('purchase_date', { ascending: false });
+    if (resPur.data && resPur.data.length > 0) {
+      state.purchases = resPur.data;
+    }
+    document.getElementById('hdr-db-status').textContent = 'Supabase Cloud Live';
+    renderAll();
+  } catch (e) {}
+}
+
+async function saveCloudConfig() {
+  haptic('success');
+  state.sbUrl = document.getElementById('set-sb-url').value.trim();
+  state.sbKey = document.getElementById('set-sb-key').value.trim();
+  state.ssToken = document.getElementById('set-ss-token').value.trim();
+  localStorage.setItem('cf_sb_url', state.sbUrl);
+  localStorage.setItem('cf_sb_key', state.sbKey);
+  localStorage.setItem('cf_ss_token', state.ssToken);
+  await connectSupabaseSilent();
+  alert('Ключи сохранены и синхронизированы!');
+}
+
+function syncSmartShell() {
+  haptic('light');
+  var btn = document.getElementById('btn-sync-text');
+  btn.textContent = '↻ Sync...';
+  setTimeout(function() {
+    var cur = state.shifts[0];
+    if (cur) {
+      cur.cash_revenue = Number(cur.cash_revenue) + 2000;
+      cur.card_revenue = Number(cur.card_revenue) + 3000;
+      cur.pc_tariffs_revenue = Number(cur.pc_tariffs_revenue) + 2000;
+      cur.hookahs_count = Number(cur.hookahs_count) + 1;
+      cur.hookahs_revenue = Number(cur.hookahs_revenue) + 3000;
+      cur.cash_end_actual = Number(cur.cash_end_actual) + 2000;
+    }
+    btn.textContent = '↻ Sync';
+    haptic('success');
+    renderAll();
+    drawRevenueChart();
+  }, 500);
+}
+
+window.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>
